@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Daily;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Multiplayer.Messages.Lobby;
@@ -46,7 +46,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Messages
     {
         private static bool Prefix(ref ClientLobbyJoinResponseMessage __instance, PacketReader reader)
         {
-            __instance.playersInLobby = PacketHelper.ReadList<LobbyPlayer>(reader);
+            __instance.playersInLobby = PacketHelper.ReadList<StartRunLobbyPlayer>(reader);
             if (reader.ReadBool())
             {
                 __instance.dailyTime = reader.Read<TimeServerResult>();
