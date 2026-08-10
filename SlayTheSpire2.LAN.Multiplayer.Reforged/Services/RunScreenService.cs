@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
@@ -34,11 +34,12 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
 
         public static async Task<bool> ShouldAllowRunToBegin(LoadRunLobby runLobby)
         {
-            if (runLobby.ConnectedPlayerIds.Count >= runLobby.Run.Players.Count)
+            var connectedPlayerCount = runLobby.PlayerCount;
+            if (connectedPlayerCount >= runLobby.Run.Players.Count)
                 return true;
 
             var locString = new LocString("gameplay_ui", "CONFIRM_LOAD_SAVE.body");
-            locString.Add("MissingCount", runLobby.Run.Players.Count - runLobby.ConnectedPlayerIds.Count);
+            locString.Add("MissingCount", runLobby.Run.Players.Count - connectedPlayerCount);
 
             var nGenericPopup = NGenericPopup.Create();
             if (nGenericPopup != null)

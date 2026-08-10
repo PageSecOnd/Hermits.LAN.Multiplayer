@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.ControllerInput;
 using MegaCrit.Sts2.Core.Helpers;
@@ -38,19 +38,36 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
                 joinButton.AddChildSafely(child.Duplicate());
             }
 
-            var controllerIcon = joinButton.GetNode<TextureRect>("ControllerIcon");
-            controllerIcon.Owner = joinButton;
-            controllerIcon.Position = new Vector2(controllerIcon.Position.X - 12, controllerIcon.Position.Y);
+            AssignOwnerRecursively(joinButton, joinButton);
+
+            // v0.110.x moved ControllerIcon away from being a direct child and the
+            // vanilla scene now references it as a unique node (%ControllerIcon).
+            // Find it recursively so both the old and new scene layouts work.
+            if (joinButton.FindChild("ControllerIcon", true, false) is TextureRect controllerIcon)
+            {
+                controllerIcon.Position = new Vector2(controllerIcon.Position.X - 12, controllerIcon.Position.Y);
+            }
 
             return joinButton;
+        }
+
+        private static void AssignOwnerRecursively(Node node, Node owner)
+        {
+            foreach (var child in node.GetChildren())
+            {
+                child.Owner = owner;
+                AssignOwnerRecursively(child, owner);
+            }
         }
 
         public override void _Ready()
         {
             base._Ready();
 
-            var node = GetNode<MegaLabel>("Label");
-            node.SetTextAutoSize(new LocString("main_menu_ui", "JOIN.title").GetFormattedText());
+            if (FindChild("Label", true, false) is MegaLabel node)
+            {
+                node.SetTextAutoSize(new LocString("main_menu_ui", "JOIN.title").GetFormattedText());
+            }
         }
     }
 }

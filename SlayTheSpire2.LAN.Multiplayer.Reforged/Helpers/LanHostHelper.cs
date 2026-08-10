@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Daily;
@@ -42,9 +42,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
             try
             {
                 var netService = new NetHostGameService();
-                NetErrorInfo? netErrorInfo = null;
-                //Add one more max client to send the full lobby message
-                netService.StartENetHost(port, maxPlayers + 1);
+                var netErrorInfo = netService.StartENetHost(port, maxPlayers + 1);
                 Log.Info($"HostGame open on port:{port}");
                 if (!netErrorInfo.HasValue)
                 {
@@ -105,8 +103,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
             try
             {
                 var netService = new NetHostGameService();
-                NetErrorInfo? netErrorInfo = null;
-                netService.StartENetHost(port, maxPlayers + 1);
+                var netErrorInfo = netService.StartENetHost(port, maxPlayers + 1);
                 Log.Info($"HostGame open on port:{port}");
                 if (!netErrorInfo.HasValue)
                 {
