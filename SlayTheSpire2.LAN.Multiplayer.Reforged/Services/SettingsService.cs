@@ -1,5 +1,6 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using MegaCrit.Sts2.Core.Saves;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Models;
 
 namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
@@ -27,10 +28,13 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             {
                 SettingsModel = new SettingsModel();
             }
+
+            SettingsModel.HostMaxPlayers = LanProtocolPolicy.ClampPlayerCount(SettingsModel.HostMaxPlayers);
         }
 
         public void WriteSettings()
         {
+            SettingsModel.HostMaxPlayers = LanProtocolPolicy.ClampPlayerCount(SettingsModel.HostMaxPlayers);
             _modsDir.WriteFile("lan_settings.json",
                 JsonSerializer.Serialize(SettingsModel, SettingsModelContext.Default.SettingsModel));
         }
