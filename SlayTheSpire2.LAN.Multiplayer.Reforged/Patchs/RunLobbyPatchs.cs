@@ -62,8 +62,10 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
             yield return typeof(LoadRunLobby).GetMethod("CleanUp", flags)!;
         }
 
-        private static void Prefix(INetGameService netService, bool disconnectSession)
+        private static void Prefix(object __instance, bool disconnectSession)
         {
+            var netService = Traverse.Create(__instance).Property("NetService").GetValue<INetGameService>();
+
             if (netService.Platform == PlatformType.None)
             {
                 var lanPlayerNameService = LanPlayerNameService.Instance;
