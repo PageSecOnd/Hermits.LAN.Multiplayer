@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Multiplayer.Messages.Lobby;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
@@ -34,7 +34,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Messages
     {
         private static bool Prefix(ref LobbyBeginRunMessage __instance, PacketReader reader)
         {
-            __instance.playersInLobby = PacketHelper.ReadList<LobbyPlayer>(reader);
+            __instance.playersInLobby = PacketHelper.ReadList<StartRunLobbyPlayer>(reader);
             __instance.seed = reader.ReadString();
             __instance.modifiers = reader.ReadList<SerializableModifier>();
             __instance.act1 = reader.ReadString();
