@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MegaCrit.Sts2.Core.Saves;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Models;
 
 namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
@@ -37,6 +38,10 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             SettingsModel.HostMaxPlayers = LanProtocolPolicy.ClampPlayerCount(SettingsModel.HostMaxPlayers);
             _modsDir.WriteFile("lan_settings.json",
                 JsonSerializer.Serialize(SettingsModel, SettingsModelContext.Default.SettingsModel));
+
+            // ModConfig may still contain a legacy value above the vanilla-safe range.
+            // Push the normalized value back so it cannot re-enter the runtime later.
+            ModConfigBridge.SetValue("hostMaxPlayers", (float)SettingsModel.HostMaxPlayers);
         }
     }
 }
