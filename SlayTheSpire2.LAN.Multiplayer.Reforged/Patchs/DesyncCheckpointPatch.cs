@@ -93,7 +93,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
                 var dialogText = report.ToPlayerText();
                 if (!string.IsNullOrWhiteSpace(reportPath))
-                    dialogText += $"{Environment.NewLine}{Environment.NewLine}Report saved to:{Environment.NewLine}{reportPath}";
+                    dialogText += $"{System.Environment.NewLine}{System.Environment.NewLine}Report saved to:{System.Environment.NewLine}{reportPath}";
 
                 var dialog = new AcceptDialog
                 {
