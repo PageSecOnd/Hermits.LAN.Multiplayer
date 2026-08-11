@@ -76,6 +76,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
                 GD.PushError("[LAN Multiplayer][DesyncTest] Injected synthetic state mismatch.\n" + report.ToLogText());
                 if (!string.IsNullOrWhiteSpace(reportPath))
                     GD.Print($"[LAN Multiplayer][DesyncTest] Synthetic desync report: {reportPath}");
+
+                ShowSyntheticDialog(report, reportPath, before, after);
             }
             catch (Exception exception)
             {
@@ -144,6 +146,48 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
             if (type == typeof(long)) return unchecked((long)value + 1L);
             if (type == typeof(ulong)) return unchecked((ulong)value + 1UL);
             return null;
+        }
+
+        private static void ShowSyntheticDialog(
+            DesyncDiagnosticReport report,
+            string? reportPath,
+            string before,
+            string after)
+        {
+            try
+            {
+                if (Engine.GetMainLoop() is not SceneTree tree)
+                    return;
+
+                var root = tree.Root;
+                var previous = root.GetNodeOrNull<AcceptDialog>("LanMultiplayerSyntheticDesyncTest");
+                previous?.QueueFree();
+
+                var dialogText =
+                    $"Synthetic desync injected successfully.{System.Environment.NewLine}" +
+                    $"lastExecutedActionId: {before} -> {after}{System.Environment.NewLine}{System.Environment.NewLine}" +
+                    report.ToPlayerText();
+
+                if (!string.IsNullOrWhiteSpace(reportPath))
+                    dialogText += $"{System.Environment.NewLine}{System.Environment.NewLine}Report saved to:{System.Environment.NewLine}{reportPath}";
+
+                var dialog = new AcceptDialog
+                {
+                    Name = "LanMultiplayerSyntheticDesyncTest",
+                    Title = "LAN Multiplayer - Synthetic desync test",
+                    DialogText = dialogText,
+                    MinSize = new Vector2I(720, 420),
+                    Unresizable = false,
+                    Exclusive = false
+                };
+
+                root.AddChild(dialog);
+                dialog.PopupCentered(new Vector2I(760, 460));
+            }
+            catch (Exception exception)
+            {
+                GD.PushWarning($"[LAN Multiplayer][DesyncTest] Could not show synthetic desync dialog: {exception}");
+            }
         }
     }
 }
