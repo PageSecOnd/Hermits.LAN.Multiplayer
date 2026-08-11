@@ -232,7 +232,10 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
         private static string ShortenPath(string path)
         {
             const int maxLength = 72;
-            return path.Length <= maxLength ? path : "…" + path[^ (maxLength - 1)..];
+            if (path.Length <= maxLength)
+                return path;
+
+            return "…" + path[(path.Length - (maxLength - 1))..];
         }
     }
 
