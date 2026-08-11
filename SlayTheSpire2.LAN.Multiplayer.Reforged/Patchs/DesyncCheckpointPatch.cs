@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
+using MegaCrit.Sts2.Core.Multiplayer.Messages.Game.Checksums;
 using MegaCrit.Sts2.Core.Runs;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
 
@@ -19,18 +20,34 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
     [HarmonyPatch(typeof(ChecksumTracker), "GenerateChecksum", new[] { typeof(string), typeof(GameAction) })]
     internal static class ChecksumTrackerTurnCheckpointPatch
     {
-        private static void Postfix(string __0, GameAction? __1)
+        private static void Postfix(string __0, GameAction? __1, NetChecksumData __result)
         {
+            var service = CombatStateSnapshotService.Instance;
+            service.ObserveChecksum(__result);
+
             if (!IsPlayerTurnStartContext(__0))
                 return;
 
-            CombatStateSnapshotService.Instance.CaptureTurnCheckpoint(__0, __1);
+            service.CaptureTurnCheckpoint(__0, __1, __result);
         }
 
         private static bool IsPlayerTurnStartContext(string? context)
         {
             return !string.IsNullOrWhiteSpace(context) &&
                    context.Contains("player turn start", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>
+    /// Preserve the checksum ID carried by a peer's divergence message before the game escalates it to
+    /// RunManager.StateDiverged, whose event signature no longer contains the checksum ID.
+    /// </summary>
+    [HarmonyPatch(typeof(ChecksumTracker), "OnReceivedStateDivergenceMessage")]
+    internal static class ChecksumTrackerRemoteDivergencePatch
+    {
+        private static void Prefix(StateDivergenceMessage __0, ulong __1)
+        {
+            CombatStateSnapshotService.Instance.RememberRemoteDivergenceChecksum(__1, __0.senderChecksum.id);
         }
     }
 
