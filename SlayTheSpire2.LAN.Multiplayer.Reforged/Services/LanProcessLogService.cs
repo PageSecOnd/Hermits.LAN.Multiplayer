@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Godot;
 
@@ -17,7 +16,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
         private StreamWriter? _writer;
         private string? _path;
         private string _role = "unknown";
-        private readonly int _processId = Environment.ProcessId;
+        private readonly int _processId = System.Environment.ProcessId;
         private readonly string _startedAt = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
 
         public string? CurrentPath
