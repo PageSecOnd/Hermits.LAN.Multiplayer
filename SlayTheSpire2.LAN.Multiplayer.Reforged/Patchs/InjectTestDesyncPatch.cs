@@ -13,7 +13,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 {
     /// <summary>
     /// Developer diagnostic injector. Press F10 during a combat to compare the live local state against a
-    /// shallow-cloned fake remote state whose lastExecutedActionId differs by one.
+    /// shallow-cloned fake remote state whose lastExecutedActionId differs from the local snapshot.
     ///
     /// This intentionally DOES NOT invoke RunManager.StateDiverged, so vanilla disconnect/teardown is not
     /// triggered. It exercises only the LAN mod's state diff + report persistence path.
@@ -62,11 +62,13 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
                 var localState = NetFullCombatState.FromRun(runState, null!);
                 var fakeRemoteState = Clone(localState);
-                if (!BumpLastExecutedActionId(fakeRemoteState))
+                if (!BumpLastExecutedActionId(fakeRemoteState, out var before, out var after))
                 {
                     GD.PushWarning("[LAN Multiplayer][DesyncTest] Could not mutate lastExecutedActionId; injection aborted.");
                     return;
                 }
+
+                GD.Print($"[LAN Multiplayer][DesyncTest] Injecting synthetic mismatch: lastExecutedActionId {before} -> {after}.");
 
                 var report = CombatStateSnapshotService.Instance.BuildDesyncReport(FakeRemotePlayerId, fakeRemoteState);
                 var reportPath = DesyncDiagnosticPersistence.Save(report);
@@ -91,8 +93,11 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
             return (NetFullCombatState)memberwiseClone.Invoke(source, null)!;
         }
 
-        private static bool BumpLastExecutedActionId(NetFullCombatState state)
+        private static bool BumpLastExecutedActionId(NetFullCombatState state, out string before, out string after)
         {
+            before = "<unknown>";
+            after = "<unknown>";
+
             var field = typeof(NetFullCombatState).GetField(
                 "lastExecutedActionId",
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -100,24 +105,45 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
                 return false;
 
             var value = field.GetValue(state);
-            object? nextValue = value switch
-            {
-                byte v => unchecked((byte)(v + 1)),
-                sbyte v => unchecked((sbyte)(v + 1)),
-                short v => unchecked((short)(v + 1)),
-                ushort v => unchecked((ushort)(v + 1)),
-                int v => unchecked(v + 1),
-                uint v => unchecked(v + 1),
-                long v => unchecked(v + 1),
-                ulong v => unchecked(v + 1),
-                _ => null
-            };
+            before = value?.ToString() ?? "null";
+
+            var valueType = Nullable.GetUnderlyingType(field.FieldType) ?? field.FieldType;
+            object? nextValue = value == null
+                ? OneForIntegralType(valueType)
+                : IncrementIntegralValue(value, valueType);
 
             if (nextValue == null)
                 return false;
 
             field.SetValue(state, nextValue);
-            return true;
+            after = field.GetValue(state)?.ToString() ?? "null";
+            return after != before;
+        }
+
+        private static object? OneForIntegralType(Type type)
+        {
+            if (type == typeof(byte)) return (byte)1;
+            if (type == typeof(sbyte)) return (sbyte)1;
+            if (type == typeof(short)) return (short)1;
+            if (type == typeof(ushort)) return (ushort)1;
+            if (type == typeof(int)) return 1;
+            if (type == typeof(uint)) return 1u;
+            if (type == typeof(long)) return 1L;
+            if (type == typeof(ulong)) return 1UL;
+            return null;
+        }
+
+        private static object? IncrementIntegralValue(object value, Type type)
+        {
+            if (type == typeof(byte)) return unchecked((byte)((byte)value + 1));
+            if (type == typeof(sbyte)) return unchecked((sbyte)((sbyte)value + 1));
+            if (type == typeof(short)) return unchecked((short)((short)value + 1));
+            if (type == typeof(ushort)) return unchecked((ushort)((ushort)value + 1));
+            if (type == typeof(int)) return unchecked((int)value + 1);
+            if (type == typeof(uint)) return unchecked((uint)value + 1u);
+            if (type == typeof(long)) return unchecked((long)value + 1L);
+            if (type == typeof(ulong)) return unchecked((ulong)value + 1UL);
+            return null;
         }
     }
 }
