@@ -3,18 +3,17 @@ using System.Globalization;
 using System.Reflection;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
 {
     /// <summary>
-    /// Experimental, local-only combat rollback prototype.
-    ///
-    /// The service deliberately does not participate in the real desync/disconnect path yet. It is invoked only
-    /// by the F11 developer hotkey so that restore behavior can be validated before any host/client coordination
-    /// is added. The implementation uses reflection at the mutation boundary to avoid taking compile-time
-    /// dependencies on private/internal combat DTO shapes that have already changed between STS2 versions.
+    /// Developer-only, local combat rollback prototype.
+    /// F11 restores the newest player-turn checkpoint on the current process and then verifies the
+    /// reconstructed NetFullCombatState against the stored checkpoint. It does not participate in
+    /// real desync recovery yet.
     /// </summary>
     internal sealed class CombatRollbackPrototypeService
     {
@@ -62,7 +61,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             if (currentlyRunningAction != null)
             {
                 return RollbackPrototypeReport.Failed(
-                    "An action is currently executing. F11 only restores at an idle player-turn boundary.",
+                    "An action is currently executing. F11 only restores while combat is idle.",
                     checkpoint);
             }
 
@@ -85,27 +84,31 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                     applied.Add("Paused player action queues");
                 }
 
-                var combatState = GetMember(runState, "CombatState", "Combat");
+                // v0.110.1 owns the live CombatState in CombatManager, not RunState.
+                // DebugOnlyGetState() is a public instance method and is the authoritative way to obtain it.
+                var combatState = CombatManager.Instance.DebugOnlyGetState();
                 if (combatState == null)
-                    return RollbackPrototypeReport.Failed("The live CombatState could not be located.", checkpoint);
+                {
+                    return RollbackPrototypeReport.Failed(
+                        "CombatManager.DebugOnlyGetState() returned null.",
+                        checkpoint);
+                }
+
+                applied.Add("Located live CombatState through CombatManager.DebugOnlyGetState()");
 
                 RestoreCreatures(combatState, checkpoint.State, applied, warnings);
                 RestorePlayers(runState, combatState, checkpoint.State, applied, warnings);
                 RestoreRunRng(runState, checkpoint.State, applied, warnings);
 
-                // Action/hook/choice/reward sequence numbers are intentionally not rewound in this first local
-                // prototype. Rewinding them incorrectly while an action is still referenced by a queue is more
-                // dangerous than leaving them monotonic. They will be added only after the live state mutation
-                // path is proven stable.
-                warnings.Add("Action/hook/choice/reward sequence counters are not rewound by this prototype yet.");
+                warnings.Add(
+                    "Power, potion, relic, orb and network sequence reconstruction is intentionally deferred in this prototype.");
 
                 var afterState = NetFullCombatState.FromRun(runState, null!);
-                var afterSnapshot = CombatStateFlattener.Flatten(afterState);
+                var afterSnapshot = FilterVolatileCheckpointFields(CombatStateFlattener.Flatten(afterState));
                 var expectedSnapshot = FilterVolatileCheckpointFields(checkpoint.Snapshot);
-                var actualSnapshot = FilterVolatileCheckpointFields(afterSnapshot);
                 var differences = CombatStateFlattener.Diff(
                     expectedSnapshot,
-                    actualSnapshot,
+                    afterSnapshot,
                     MaxReportedDifferences,
                     out var totalDifferences);
 
@@ -118,8 +121,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                     checkpoint.Sequence,
                     checkpoint.ChecksumId,
                     checkpoint.Context,
-                    applied,
-                    warnings,
+                    applied.ToArray(),
+                    warnings.ToArray(),
                     totalDifferences,
                     differences,
                     null);
@@ -138,8 +141,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                     checkpoint.Sequence,
                     checkpoint.ChecksumId,
                     checkpoint.Context,
-                    applied,
-                    warnings,
+                    applied.ToArray(),
+                    warnings.ToArray(),
                     -1,
                     Array.Empty<StateDifference>(),
                     exception.ToString());
@@ -157,7 +160,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 }
                 catch (Exception exception)
                 {
-                    GD.PushWarning($"[LAN Multiplayer][RollbackPrototype] Could not unpause player queues: {exception}");
+                    GD.PushWarning(
+                        $"[LAN Multiplayer][RollbackPrototype] Could not unpause player queues: {exception}");
                 }
 
                 try
@@ -167,7 +171,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 }
                 catch (Exception exception)
                 {
-                    GD.PushWarning($"[LAN Multiplayer][RollbackPrototype] Could not unpause ActionExecutor: {exception}");
+                    GD.PushWarning(
+                        $"[LAN Multiplayer][RollbackPrototype] Could not unpause ActionExecutor: {exception}");
                 }
             }
         }
@@ -178,41 +183,84 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             ICollection<string> applied,
             ICollection<string> warnings)
         {
-            var checkpointCreatures = EnumerateValues(GetMember(checkpointState, "Creatures", "creatures")).ToArray();
+            var sourceCreatures = EnumerateValues(GetMember(checkpointState, "Creatures", "creatures")).ToArray();
             var liveCreatures = EnumerateValues(GetMember(combatState, "Creatures", "creatures")).ToArray();
             var used = new HashSet<object>(ReferenceEqualityComparer.Instance);
 
-            for (var index = 0; index < checkpointCreatures.Length; index++)
+            for (var i = 0; i < sourceCreatures.Length; i++)
             {
-                var source = checkpointCreatures[index];
+                var source = sourceCreatures[i];
                 if (source == null)
                     continue;
 
-                var liveCreature = FindLiveCreature(combatState, source, liveCreatures, used, index);
-                if (liveCreature == null)
+                var live = FindLiveCreature(combatState, source, liveCreatures, used, i);
+                if (live == null)
                 {
-                    warnings.Add($"Creature[{index}] could not be matched to a live creature.");
+                    warnings.Add($"Creature[{i}] could not be matched to a live creature.");
                     continue;
                 }
 
-                used.Add(liveCreature);
-                var label = DescribeCreature(source, index);
+                used.Add(live);
+                var label = DescribeCreature(source, i);
 
-                RestoreCreatureInteger(liveCreature, source, "maxHp", "MaxHp", "SetMaxHpInternal", label, applied, warnings);
-                RestoreCreatureInteger(liveCreature, source, "currentHp", "CurrentHp", "SetCurrentHpInternal", label, applied, warnings);
+                RestoreCreatureInteger(
+                    live, source, "maxHp", "MaxHp", "SetMaxHpInternal", label, applied, warnings);
+                RestoreCreatureInteger(
+                    live, source, "currentHp", "CurrentHp", "SetCurrentHpInternal", label, applied, warnings);
 
                 var block = GetMember(source, "block", "Block");
                 if (block != null)
                 {
-                    if (TrySetMember(liveCreature, block, "Block", "block"))
-                        applied.Add($"{label}: block={FormatValue(block)}");
+                    if (TrySetMember(live, block, "Block", "block"))
+                        applied.Add($"{label}: Block={FormatValue(block)}");
                     else
-                        warnings.Add($"{label}: block could not be restored.");
+                        warnings.Add($"{label}: Block could not be restored.");
                 }
-
-                // Power reconstruction is intentionally deferred. PowerModel creation has side effects and hook
-                // registration; it must be restored only after we can atomically rebuild all powers for all peers.
             }
+        }
+
+        private static object? FindLiveCreature(
+            object combatState,
+            object source,
+            IReadOnlyList<object?> liveCreatures,
+            ISet<object> used,
+            int fallbackIndex)
+        {
+            var playerId = GetNullableUInt64(GetMember(source, "playerId", "PlayerId"));
+            if (playerId.HasValue &&
+                TryInvoke(combatState, "GetPlayer", new object?[] { playerId.Value }, out var player) &&
+                player != null)
+            {
+                var playerCreature = GetMember(player, "Creature", "creature");
+                if (playerCreature != null && !used.Contains(playerCreature))
+                    return playerCreature;
+            }
+
+            var monsterId = NormalizeIdentity(GetMember(source, "monsterId", "MonsterId"));
+            if (!string.IsNullOrWhiteSpace(monsterId))
+            {
+                foreach (var live in liveCreatures)
+                {
+                    if (live == null || used.Contains(live))
+                        continue;
+
+                    var liveId = NormalizeIdentity(
+                        GetMember(live, "Id", "ModelId") ??
+                        GetMember(GetMember(live, "Model", "CreatureModel"), "Id", "ModelId"));
+
+                    if (string.Equals(monsterId, liveId, StringComparison.OrdinalIgnoreCase))
+                        return live;
+                }
+            }
+
+            if (fallbackIndex >= 0 && fallbackIndex < liveCreatures.Count)
+            {
+                var fallback = liveCreatures[fallbackIndex];
+                if (fallback != null && !used.Contains(fallback))
+                    return fallback;
+            }
+
+            return liveCreatures.FirstOrDefault(x => x != null && !used.Contains(x));
         }
 
         private static void RestoreCreatureInteger(
@@ -240,47 +288,6 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             }
         }
 
-        private static object? FindLiveCreature(
-            object combatState,
-            object checkpointCreature,
-            IReadOnlyList<object?> liveCreatures,
-            ISet<object> used,
-            int fallbackIndex)
-        {
-            var playerId = GetNullableUInt64(GetMember(checkpointCreature, "playerId", "PlayerId"));
-            if (playerId.HasValue && TryInvoke(combatState, "GetPlayer", new object?[] { playerId.Value }, out var player))
-            {
-                var playerCreature = player == null ? null : GetMember(player, "Creature", "creature");
-                if (playerCreature != null && !used.Contains(playerCreature))
-                    return playerCreature;
-            }
-
-            var monsterId = NormalizeIdentity(GetMember(checkpointCreature, "monsterId", "MonsterId"));
-            if (!string.IsNullOrWhiteSpace(monsterId))
-            {
-                foreach (var live in liveCreatures)
-                {
-                    if (live == null || used.Contains(live))
-                        continue;
-
-                    var liveId = NormalizeIdentity(
-                        GetMember(live, "Id", "ModelId") ??
-                        GetMember(GetMember(live, "Model", "CreatureModel"), "Id", "ModelId"));
-                    if (string.Equals(monsterId, liveId, StringComparison.OrdinalIgnoreCase))
-                        return live;
-                }
-            }
-
-            if (fallbackIndex >= 0 && fallbackIndex < liveCreatures.Count)
-            {
-                var fallback = liveCreatures[fallbackIndex];
-                if (fallback != null && !used.Contains(fallback))
-                    return fallback;
-            }
-
-            return liveCreatures.FirstOrDefault(live => live != null && !used.Contains(live));
-        }
-
         private static void RestorePlayers(
             RunState runState,
             object combatState,
@@ -288,39 +295,42 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             ICollection<string> applied,
             ICollection<string> warnings)
         {
-            var checkpointPlayers = EnumerateValues(GetMember(checkpointState, "Players", "players")).ToArray();
-            for (var index = 0; index < checkpointPlayers.Length; index++)
+            var sourcePlayers = EnumerateValues(GetMember(checkpointState, "Players", "players")).ToArray();
+            var livePlayers = EnumerateValues(GetMember(combatState, "Players", "players")).ToArray();
+
+            for (var i = 0; i < sourcePlayers.Length; i++)
             {
-                var source = checkpointPlayers[index];
+                var source = sourcePlayers[i];
                 if (source == null)
                     continue;
 
                 var playerId = GetNullableUInt64(GetMember(source, "playerId", "PlayerId"));
-                if (!playerId.HasValue ||
-                    !TryInvoke(combatState, "GetPlayer", new object?[] { playerId.Value }, out var livePlayer) ||
-                    livePlayer == null)
-                {
-                    livePlayer = FindLivePlayerByEnumeration(combatState, playerId, index);
-                }
+                object? livePlayer = null;
 
+                if (playerId.HasValue)
+                    TryInvoke(combatState, "GetPlayer", new object?[] { playerId.Value }, out livePlayer);
+
+                livePlayer ??= FindPlayerByEnumeration(livePlayers, playerId, i);
                 if (livePlayer == null)
                 {
-                    warnings.Add($"PlayerState[{index}] could not be matched to a live player.");
+                    warnings.Add($"PlayerState[{i}] could not be matched to a live player.");
                     continue;
                 }
 
-                var label = $"Player {playerId?.ToString(CultureInfo.InvariantCulture) ?? index.ToString(CultureInfo.InvariantCulture)}";
-                var combat = GetMember(livePlayer, "PlayerCombatState", "CombatState");
-                if (combat == null)
+                var label =
+                    $"Player {playerId?.ToString(CultureInfo.InvariantCulture) ?? i.ToString(CultureInfo.InvariantCulture)}";
+
+                var liveCombat = GetMember(livePlayer, "PlayerCombatState", "CombatState");
+                if (liveCombat == null)
                 {
-                    warnings.Add($"{label}: PlayerCombatState is unavailable.");
+                    warnings.Add($"{label}: PlayerCombatState could not be located.");
                 }
                 else
                 {
-                    RestorePlayerCombatValue(combat, source, "turnNumber", "TurnNumber", label, applied, warnings);
-                    RestorePlayerCombatValue(combat, source, "phase", "Phase", label, applied, warnings);
-                    RestorePlayerCombatValue(combat, source, "energy", "Energy", label, applied, warnings);
-                    RestorePlayerCombatValue(combat, source, "stars", "Stars", label, applied, warnings);
+                    RestorePlayerCombatValue(liveCombat, source, "turnNumber", "TurnNumber", label, applied, warnings);
+                    RestorePlayerCombatValue(liveCombat, source, "phase", "Phase", label, applied, warnings);
+                    RestorePlayerCombatValue(liveCombat, source, "energy", "Energy", label, applied, warnings);
+                    RestorePlayerCombatValue(liveCombat, source, "stars", "Stars", label, applied, warnings);
                 }
 
                 var gold = GetMember(source, "gold", "Gold");
@@ -335,15 +345,14 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 RestorePlayerRng(livePlayer, source, label, applied, warnings);
                 RestoreRelicGrabBag(livePlayer, source, label, applied, warnings);
                 RestoreCardPiles(runState, livePlayer, source, label, applied, warnings);
-
-                // Potions/relics/orbs are not rebuilt in the first prototype because replacing those collections
-                // can fire acquisition/removal hooks. The post-restore diff will expose any mismatch clearly.
             }
         }
 
-        private static object? FindLivePlayerByEnumeration(object combatState, ulong? playerId, int fallbackIndex)
+        private static object? FindPlayerByEnumeration(
+            IReadOnlyList<object?> players,
+            ulong? playerId,
+            int fallbackIndex)
         {
-            var players = EnumerateValues(GetMember(combatState, "Players", "players")).ToArray();
             if (playerId.HasValue)
             {
                 foreach (var player in players)
@@ -357,11 +366,14 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 }
             }
 
-            return fallbackIndex >= 0 && fallbackIndex < players.Length ? players[fallbackIndex] : players.FirstOrDefault();
+            if (fallbackIndex >= 0 && fallbackIndex < players.Count)
+                return players[fallbackIndex];
+
+            return players.FirstOrDefault();
         }
 
         private static void RestorePlayerCombatValue(
-            object liveCombatState,
+            object liveCombat,
             object source,
             string sourceName,
             string targetName,
@@ -373,7 +385,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             if (value == null)
                 return;
 
-            if (TrySetMember(liveCombatState, value, targetName, sourceName))
+            if (TrySetMember(liveCombat, value, targetName, sourceName))
                 applied.Add($"{label}: {targetName}={FormatValue(value)}");
             else
                 warnings.Add($"{label}: {targetName} could not be restored.");
@@ -385,18 +397,18 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             ICollection<string> applied,
             ICollection<string> warnings)
         {
-            var serializedRng = GetMember(checkpointState, "Rng", "rng");
-            if (serializedRng == null)
+            var serialized = GetMember(checkpointState, "Rng", "rng");
+            if (serialized == null)
                 return;
 
-            var liveRng = GetMember(runState, "RunRng", "Rng", "RngSet");
-            if (liveRng == null)
+            var live = GetMember(runState, "RunRng", "Rng", "RngSet");
+            if (live == null)
             {
                 warnings.Add("Run RNG object could not be located.");
                 return;
             }
 
-            if (TryInvoke(liveRng, "LoadFromSerializable", new[] { serializedRng }, out _))
+            if (TryInvoke(live, "LoadFromSerializable", new[] { serialized }, out _))
                 applied.Add("Run RNG restored");
             else
                 warnings.Add("Run RNG LoadFromSerializable could not be invoked.");
@@ -458,24 +470,24 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             ICollection<string> applied,
             ICollection<string> warnings)
         {
-            var checkpointPiles = EnumerateValues(GetMember(checkpointPlayer, "piles", "Piles")).ToArray();
-            if (checkpointPiles.Length == 0)
+            var sourcePiles = EnumerateValues(GetMember(checkpointPlayer, "piles", "Piles")).ToArray();
+            if (sourcePiles.Length == 0)
                 return;
 
-            var livePilesContainer = GetMember(livePlayer, "Piles", "piles");
-            if (livePilesContainer == null)
+            var livePiles = GetMember(livePlayer, "Piles", "piles");
+            if (livePiles == null)
             {
                 warnings.Add($"{label}: live Piles collection could not be located.");
                 return;
             }
 
-            foreach (var checkpointPile in checkpointPiles)
+            foreach (var sourcePile in sourcePiles)
             {
-                if (checkpointPile == null)
+                if (sourcePile == null)
                     continue;
 
-                var pileType = GetMember(checkpointPile, "pileType", "PileType", "Type");
-                var livePile = FindLivePile(livePilesContainer, pileType);
+                var pileType = GetMember(sourcePile, "pileType", "PileType", "Type");
+                var livePile = FindLivePile(livePiles, pileType);
                 if (livePile == null)
                 {
                     warnings.Add($"{label}: pile {FormatValue(pileType)} could not be located.");
@@ -489,76 +501,71 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                     continue;
                 }
 
-                var checkpointCards = EnumerateValues(GetMember(checkpointPile, "cards", "Cards")).ToArray();
-                var restoredCards = 0;
-                for (var cardIndex = 0; cardIndex < checkpointCards.Length; cardIndex++)
+                var cards = EnumerateValues(GetMember(sourcePile, "cards", "Cards")).ToArray();
+                var restored = 0;
+
+                for (var cardIndex = 0; cardIndex < cards.Length; cardIndex++)
                 {
-                    var checkpointCard = checkpointCards[cardIndex];
-                    if (checkpointCard == null)
+                    var sourceCard = cards[cardIndex];
+                    if (sourceCard == null)
                         continue;
 
-                    var serializedCard = GetMember(checkpointCard, "card", "Card");
+                    var serializedCard = GetMember(sourceCard, "card", "Card");
                     if (serializedCard == null ||
                         !TryInvoke(runState, "LoadCard", new[] { serializedCard, livePlayer }, out var liveCard) ||
                         liveCard == null)
                     {
                         warnings.Add(
-                            $"{label}: {FormatValue(pileType)} card[{cardIndex}] could not be reconstructed with RunState.LoadCard.");
+                            $"{label}: {FormatValue(pileType)} card[{cardIndex}] could not be reconstructed.");
                         continue;
                     }
 
-                    var energyCost = GetMember(checkpointCard, "energyCost", "EnergyCost");
+                    var energyCost = GetMember(sourceCard, "energyCost", "EnergyCost");
                     if (energyCost != null)
                         TrySetMember(liveCard, energyCost, "EnergyCost", "energyCost");
 
-                    var affliction = GetMember(checkpointCard, "affliction", "Affliction");
-                    var afflictionCount = GetMember(checkpointCard, "afflictionCount", "AfflictionCount");
-                    if (affliction != null && afflictionCount != null)
+                    if (!TryInvoke(livePile, "AddInternal", new object?[] { liveCard, restored, false }, out _) &&
+                        !TryInvoke(livePile, "AddInternal", new object?[] { liveCard, restored }, out _) &&
+                        !TryInvoke(livePile, "Add", new object?[] { liveCard }, out _))
                     {
-                        // This is best-effort. If the current version exposes a compatible AfflictInternal overload,
-                        // restore it; otherwise the post-restore diff will report the remaining mismatch.
-                        TryInvoke(liveCard, "AfflictInternal", new[] { affliction, afflictionCount }, out _);
+                        warnings.Add(
+                            $"{label}: {FormatValue(pileType)} card[{cardIndex}] could not be inserted.");
+                        continue;
                     }
 
-                    if (TryInvoke(livePile, "AddInternal", new object?[] { liveCard, cardIndex, false }, out _) ||
-                        TryInvoke(livePile, "AddInternal", new object?[] { liveCard, cardIndex }, out _) ||
-                        TryInvoke(livePile, "AddInternal", new object?[] { liveCard }, out _))
-                    {
-                        restoredCards++;
-                    }
-                    else
-                    {
-                        warnings.Add($"{label}: {FormatValue(pileType)} card[{cardIndex}] could not be added back to the pile.");
-                    }
+                    restored++;
                 }
 
-                applied.Add($"{label}: rebuilt {FormatValue(pileType)} pile ({restoredCards}/{checkpointCards.Length} cards)");
+                applied.Add($"{label}: rebuilt {FormatValue(pileType)} pile with {restored}/{cards.Length} card(s)");
             }
         }
 
-        private static object? FindLivePile(object container, object? pileType)
+        private static object? FindLivePile(object livePiles, object? pileType)
         {
-            var wanted = NormalizeIdentity(pileType);
-
-            if (container is IDictionary dictionary)
+            if (livePiles is IDictionary dictionary)
             {
                 foreach (DictionaryEntry entry in dictionary)
                 {
-                    if (string.Equals(NormalizeIdentity(entry.Key), wanted, StringComparison.OrdinalIgnoreCase))
+                    if (ValuesEquivalent(entry.Key, pileType))
                         return entry.Value;
                 }
             }
 
-            foreach (var item in EnumerateValues(container))
+            foreach (var pile in EnumerateValues(livePiles))
             {
-                if (item == null)
+                if (pile == null)
                     continue;
 
-                var key = GetMember(item, "Key");
-                var value = GetMember(item, "Value") ?? item;
-                var candidateType = key ?? GetMember(value, "PileType", "Type", "pileType");
-                if (string.Equals(NormalizeIdentity(candidateType), wanted, StringComparison.OrdinalIgnoreCase))
-                    return value;
+                var liveType = GetMember(pile, "Type", "PileType", "pileType");
+                if (ValuesEquivalent(liveType, pileType))
+                    return pile;
+            }
+
+            if (pileType != null &&
+                TryInvoke(livePiles, "GetPile", new[] { pileType }, out var byMethod) &&
+                byMethod != null)
+            {
+                return byMethod;
             }
 
             return null;
@@ -567,173 +574,115 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
         private static IReadOnlyDictionary<string, string> FilterVolatileCheckpointFields(
             IReadOnlyDictionary<string, string> source)
         {
-            var filtered = new SortedDictionary<string, string>(StringComparer.Ordinal);
+            var result = new SortedDictionary<string, string>(StringComparer.Ordinal);
+
             foreach (var pair in source)
             {
-                if (IsVolatilePath(pair.Key))
-                    continue;
-                filtered[pair.Key] = pair.Value;
-            }
-            return filtered;
-        }
-
-        private static bool IsVolatilePath(string path)
-        {
-            return path.EndsWith(".lastExecutedActionId", StringComparison.OrdinalIgnoreCase) ||
-                   path.EndsWith(".lastExecutedHookId", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string DescribeCreature(object source, int index)
-        {
-            var playerId = GetNullableUInt64(GetMember(source, "playerId", "PlayerId"));
-            if (playerId.HasValue)
-                return $"PlayerCreature {playerId.Value}";
-
-            var monsterId = NormalizeIdentity(GetMember(source, "monsterId", "MonsterId"));
-            return string.IsNullOrWhiteSpace(monsterId) ? $"Creature[{index}]" : $"Monster {monsterId}";
-        }
-
-        private static object? GetMember(object? target, params string[] names)
-        {
-            if (target == null)
-                return null;
-
-            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-            var type = target.GetType();
-            foreach (var name in names)
-            {
-                var property = type.GetProperty(name, flags);
-                if (property != null)
+                var lower = pair.Key.ToLowerInvariant();
+                if (lower.Contains("lastexecutedactionid") ||
+                    lower.Contains("lastexecutedhookid") ||
+                    lower.Contains("nextchoiceids") ||
+                    lower.Contains("nextrewardids"))
                 {
-                    try
-                    {
-                        return property.GetValue(target);
-                    }
-                    catch
-                    {
-                        // Try the next candidate member name.
-                    }
+                    continue;
                 }
 
-                var field = type.GetField(name, flags);
-                if (field != null)
+                result[pair.Key] = pair.Value;
+            }
+
+            return result;
+        }
+
+        private static object? GetMember(object? instance, params string[] names)
+        {
+            if (instance == null)
+                return null;
+
+            var type = instance.GetType();
+            const BindingFlags flags =
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase;
+
+            foreach (var name in names)
+            {
+                try
                 {
-                    try
-                    {
-                        return field.GetValue(target);
-                    }
-                    catch
-                    {
-                        // Try the next candidate member name.
-                    }
+                    var property = type.GetProperty(name, flags);
+                    if (property != null && property.GetIndexParameters().Length == 0)
+                        return property.GetValue(instance);
+
+                    var field = type.GetField(name, flags);
+                    if (field != null)
+                        return field.GetValue(instance);
+                }
+                catch
+                {
+                    // Probe the next candidate.
                 }
             }
 
             return null;
         }
 
-        private static bool TrySetMember(object target, object? value, params string[] names)
+        private static bool TrySetMember(object instance, object? value, params string[] names)
         {
-            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-            var type = target.GetType();
+            var type = instance.GetType();
+            const BindingFlags flags =
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase;
 
             foreach (var name in names)
             {
-                var property = type.GetProperty(name, flags);
-                if (property?.SetMethod != null)
+                try
                 {
-                    try
+                    var property = type.GetProperty(name, flags);
+                    var setter = property?.GetSetMethod(true);
+                    if (property != null && setter != null && property.GetIndexParameters().Length == 0)
                     {
-                        property.SetValue(target, ConvertValue(value, property.PropertyType));
+                        setter.Invoke(instance, new[] { ConvertForTarget(value, property.PropertyType) });
                         return true;
                     }
-                    catch
+
+                    var field = type.GetField(name, flags);
+                    if (field != null && !field.IsInitOnly)
                     {
-                        // Fall through to fields/alternate names.
+                        field.SetValue(instance, ConvertForTarget(value, field.FieldType));
+                        return true;
                     }
                 }
-
-                var field = type.GetField(name, flags);
-                if (field != null && !field.IsInitOnly)
+                catch
                 {
-                    try
-                    {
-                        field.SetValue(target, ConvertValue(value, field.FieldType));
-                        return true;
-                    }
-                    catch
-                    {
-                        // Try backing fields below.
-                    }
-                }
-
-                var backingField = type.GetField($"<{name}>k__BackingField", flags);
-                if (backingField != null && !backingField.IsInitOnly)
-                {
-                    try
-                    {
-                        backingField.SetValue(target, ConvertValue(value, backingField.FieldType));
-                        return true;
-                    }
-                    catch
-                    {
-                        // Try the next name.
-                    }
+                    // Probe the next candidate.
                 }
             }
 
             return false;
         }
 
-        private static bool TryInvoke(object target, string methodName, object?[] suppliedArgs, out object? result)
+        private static bool TryInvoke(
+            object instance,
+            string methodName,
+            object?[] arguments,
+            out object? result)
         {
             result = null;
-            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-            var methods = target.GetType()
+            const BindingFlags flags =
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+            var methods = instance.GetType()
                 .GetMethods(flags)
-                .Where(method => string.Equals(method.Name, methodName, StringComparison.Ordinal))
-                .OrderBy(method => method.GetParameters().Length)
-                .ToArray();
+                .Where(m => string.Equals(m.Name, methodName, StringComparison.Ordinal))
+                .Where(m => m.GetParameters().Length == arguments.Length);
 
             foreach (var method in methods)
             {
-                var parameters = method.GetParameters();
-                if (parameters.Length < suppliedArgs.Length)
-                    continue;
-
-                var invocationArgs = new object?[parameters.Length];
-                var compatible = true;
-
-                for (var index = 0; index < parameters.Length; index++)
-                {
-                    if (index < suppliedArgs.Length)
-                    {
-                        try
-                        {
-                            invocationArgs[index] = ConvertValue(suppliedArgs[index], parameters[index].ParameterType);
-                        }
-                        catch
-                        {
-                            compatible = false;
-                            break;
-                        }
-                    }
-                    else if (parameters[index].HasDefaultValue)
-                    {
-                        invocationArgs[index] = parameters[index].DefaultValue;
-                    }
-                    else
-                    {
-                        invocationArgs[index] = GetDefault(parameters[index].ParameterType);
-                    }
-                }
-
-                if (!compatible)
-                    continue;
-
                 try
                 {
-                    result = method.Invoke(target, invocationArgs);
+                    var parameters = method.GetParameters();
+                    var converted = new object?[arguments.Length];
+
+                    for (var i = 0; i < arguments.Length; i++)
+                        converted[i] = ConvertForTarget(arguments[i], parameters[i].ParameterType);
+
+                    result = method.Invoke(instance, converted);
                     return true;
                 }
                 catch
@@ -745,44 +694,42 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             return false;
         }
 
-        private static object? ConvertValue(object? value, Type targetType)
+        private static object? ConvertForTarget(object? value, Type targetType)
         {
-            var nullableType = Nullable.GetUnderlyingType(targetType);
-            var effectiveType = nullableType ?? targetType;
-
             if (value == null)
             {
-                if (!effectiveType.IsValueType || nullableType != null)
-                    return null;
-                return Activator.CreateInstance(effectiveType);
+                return !targetType.IsValueType || Nullable.GetUnderlyingType(targetType) != null
+                    ? null
+                    : Activator.CreateInstance(targetType);
             }
 
-            if (targetType.IsInstanceOfType(value) || effectiveType.IsInstanceOfType(value))
+            var effectiveTarget = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            var sourceType = value.GetType();
+
+            if (effectiveTarget.IsAssignableFrom(sourceType))
                 return value;
 
-            if (effectiveType.IsEnum)
+            if (effectiveTarget.IsEnum)
             {
-                if (value.GetType().IsEnum)
-                    return Enum.Parse(effectiveType, value.ToString()!, true);
                 if (value is string text)
-                    return Enum.Parse(effectiveType, text, true);
-                var underlying = Enum.GetUnderlyingType(effectiveType);
-                return Enum.ToObject(effectiveType, Convert.ChangeType(value, underlying, CultureInfo.InvariantCulture)!);
+                    return Enum.Parse(effectiveTarget, text, true);
+
+                var numeric = Convert.ChangeType(
+                    value,
+                    Enum.GetUnderlyingType(effectiveTarget),
+                    CultureInfo.InvariantCulture);
+                return Enum.ToObject(effectiveTarget, numeric!);
             }
 
-            return Convert.ChangeType(value, effectiveType, CultureInfo.InvariantCulture);
-        }
+            if (value is IConvertible && typeof(IConvertible).IsAssignableFrom(effectiveTarget))
+                return Convert.ChangeType(value, effectiveTarget, CultureInfo.InvariantCulture);
 
-        private static object? GetDefault(Type type)
-        {
-            if (type.IsByRef)
-                type = type.GetElementType() ?? type;
-            return type.IsValueType ? Activator.CreateInstance(type) : null;
+            return value;
         }
 
         private static IEnumerable<object?> EnumerateValues(object? value)
         {
-            if (value == null)
+            if (value == null || value is string)
                 yield break;
 
             if (value is IDictionary dictionary)
@@ -792,7 +739,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 yield break;
             }
 
-            if (value is IEnumerable enumerable && value is not string)
+            if (value is IEnumerable enumerable)
             {
                 foreach (var item in enumerable)
                     yield return item;
@@ -800,6 +747,32 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             }
 
             yield return value;
+        }
+
+        private static bool ValuesEquivalent(object? left, object? right)
+        {
+            if (left == null || right == null)
+                return left == null && right == null;
+
+            if (Equals(left, right))
+                return true;
+
+            return string.Equals(
+                NormalizeIdentity(left),
+                NormalizeIdentity(right),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeIdentity(object? value)
+        {
+            if (value == null)
+                return string.Empty;
+
+            var nested = GetMember(value, "Id", "ModelId", "Value");
+            if (nested != null && !ReferenceEquals(nested, value))
+                return NormalizeIdentity(nested);
+
+            return Convert.ToString(value, CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
         }
 
         private static ulong? GetNullableUInt64(object? value)
@@ -817,34 +790,34 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             }
         }
 
-        private static string NormalizeIdentity(object? value)
+        private static string DescribeCreature(object source, int fallbackIndex)
         {
-            if (value == null)
-                return string.Empty;
+            var playerId = GetNullableUInt64(GetMember(source, "playerId", "PlayerId"));
+            if (playerId.HasValue)
+                return $"PlayerCreature {playerId.Value}";
 
-            var nested = GetMember(value, "Id", "ModelId", "Value");
-            if (nested != null && !ReferenceEquals(nested, value))
-                return NormalizeIdentity(nested);
-
-            return value.ToString()?.Trim() ?? string.Empty;
+            var monsterId = NormalizeIdentity(GetMember(source, "monsterId", "MonsterId"));
+            return string.IsNullOrWhiteSpace(monsterId)
+                ? $"Creature[{fallbackIndex}]"
+                : $"Monster {monsterId}";
         }
 
         private static string FormatValue(object? value)
         {
-            return value switch
-            {
-                null => "<null>",
-                IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? "<null>",
-                _ => value.ToString() ?? "<null>"
-            };
+            if (value == null)
+                return "<null>";
+
+            return value is IFormattable formattable
+                ? formattable.ToString(null, CultureInfo.InvariantCulture) ?? "<null>"
+                : value.ToString() ?? "<null>";
         }
     }
 
     internal enum RollbackPrototypeStatus
     {
-        Restored,
+        Failed,
         Partial,
-        Failed
+        Restored
     }
 
     internal sealed record RollbackPrototypeReport(
@@ -858,7 +831,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
         IReadOnlyList<StateDifference> RemainingDifferences,
         string? Failure)
     {
-        public static RollbackPrototypeReport Failed(string message, CombatCheckpoint? checkpoint = null)
+        public static RollbackPrototypeReport Failed(string reason, CombatCheckpoint? checkpoint = null)
         {
             return new RollbackPrototypeReport(
                 RollbackPrototypeStatus.Failed,
@@ -869,57 +842,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 Array.Empty<string>(),
                 -1,
                 Array.Empty<StateDifference>(),
-                message);
-        }
-
-        public string ToPlayerText()
-        {
-            var lines = new List<string>
-            {
-                Status switch
-                {
-                    RollbackPrototypeStatus.Restored => "Local checkpoint restore completed and post-restore state matches the checkpoint.",
-                    RollbackPrototypeStatus.Partial => "Local checkpoint restore ran, but some state still differs from the checkpoint.",
-                    _ => "Local checkpoint restore was not performed."
-                }
-            };
-
-            if (CheckpointSequence.HasValue)
-                lines.Add($"Checkpoint: #{CheckpointSequence}, checksum {CheckpointChecksumId} ({CheckpointContext})");
-
-            if (!string.IsNullOrWhiteSpace(Failure))
-            {
-                lines.Add(string.Empty);
-                lines.Add("Reason:");
-                lines.Add(Failure!);
-            }
-
-            lines.Add(string.Empty);
-            lines.Add($"Applied mutations: {AppliedMutations.Count}");
-            foreach (var mutation in AppliedMutations.Take(10))
-                lines.Add($"• {mutation}");
-            if (AppliedMutations.Count > 10)
-                lines.Add($"• … {AppliedMutations.Count - 10} more");
-
-            if (RemainingDifferenceCount >= 0)
-            {
-                lines.Add(string.Empty);
-                lines.Add($"Remaining checkpoint differences: {RemainingDifferenceCount}");
-                foreach (var difference in RemainingDifferences.Take(8))
-                    lines.Add($"• {difference.Path}: {difference.LocalValue} / {difference.RemoteValue}");
-            }
-
-            if (Warnings.Count > 0)
-            {
-                lines.Add(string.Empty);
-                lines.Add($"Prototype warnings: {Warnings.Count}");
-                foreach (var warning in Warnings.Take(8))
-                    lines.Add($"• {warning}");
-            }
-
-            lines.Add(string.Empty);
-            lines.Add("This is a local developer prototype only. It does not suppress real desync teardown or send rollback commands to peers.");
-            return string.Join(System.Environment.NewLine, lines);
+                reason);
         }
 
         public string ToLogText()
@@ -927,22 +850,102 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             var lines = new List<string>
             {
                 $"[LAN Multiplayer][RollbackPrototype] Status={Status}",
-                $"Checkpoint=#{CheckpointSequence?.ToString(CultureInfo.InvariantCulture) ?? "none"} checksum={CheckpointChecksumId?.ToString(CultureInfo.InvariantCulture) ?? "none"}",
-                $"AppliedMutations={AppliedMutations.Count}",
-                $"Warnings={Warnings.Count}",
-                $"RemainingDifferences={RemainingDifferenceCount}"
+                $"Checkpoint={(CheckpointSequence.HasValue ? $"#{CheckpointSequence} checksum={CheckpointChecksumId}" : "none")}",
+                $"Applied mutations={AppliedMutations.Count}",
+                $"Remaining differences={RemainingDifferenceCount}"
             };
 
-            foreach (var mutation in AppliedMutations)
-                lines.Add($"  applied: {mutation}");
-            foreach (var warning in Warnings)
-                lines.Add($"  warning: {warning}");
-            foreach (var difference in RemainingDifferences)
-                lines.Add($"  difference: {difference.Path}: {difference.LocalValue} | {difference.RemoteValue}");
             if (!string.IsNullOrWhiteSpace(Failure))
-                lines.Add($"  failure: {Failure}");
+                lines.Add($"Failure={Failure}");
+
+            if (Warnings.Count > 0)
+            {
+                lines.Add("Warnings:");
+                foreach (var warning in Warnings.Take(16))
+                    lines.Add($"  - {warning}");
+            }
+
+            if (RemainingDifferences.Count > 0)
+            {
+                lines.Add("Remaining checkpoint differences (expected | live):");
+                foreach (var difference in RemainingDifferences)
+                    lines.Add($"  {difference.Path}: {difference.LocalValue} | {difference.RemoteValue}");
+            }
 
             return string.Join(System.Environment.NewLine, lines);
+        }
+
+        public string ToPlayerText()
+        {
+            var lines = new List<string>();
+
+            lines.Add(Status switch
+            {
+                RollbackPrototypeStatus.Restored =>
+                    "Local checkpoint restore completed and the reconstructed combat snapshot matches the checkpoint.",
+                RollbackPrototypeStatus.Partial =>
+                    "Local checkpoint restore ran, but the reconstructed combat snapshot still differs from the checkpoint.",
+                _ =>
+                    "Local checkpoint restore was not performed."
+            });
+
+            if (CheckpointSequence.HasValue)
+            {
+                lines.Add(string.Empty);
+                lines.Add(
+                    $"Checkpoint: #{CheckpointSequence}, checksum {CheckpointChecksumId} ({CheckpointContext})");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Failure))
+            {
+                lines.Add(string.Empty);
+                lines.Add("Reason:");
+                lines.Add(Failure);
+            }
+
+            lines.Add(string.Empty);
+            lines.Add($"Applied mutations: {AppliedMutations.Count}");
+
+            foreach (var mutation in AppliedMutations.Take(10))
+                lines.Add($"• {mutation}");
+
+            if (AppliedMutations.Count > 10)
+                lines.Add($"• ... {AppliedMutations.Count - 10} more");
+
+            if (Status != RollbackPrototypeStatus.Failed)
+            {
+                lines.Add(string.Empty);
+                lines.Add($"Remaining checkpoint differences: {RemainingDifferenceCount}");
+
+                foreach (var difference in RemainingDifferences.Take(8))
+                {
+                    lines.Add(
+                        $"• {ShortenPath(difference.Path)}: expected {difference.LocalValue} / live {difference.RemoteValue}");
+                }
+
+                if (RemainingDifferenceCount > RemainingDifferences.Count)
+                    lines.Add($"• ... {RemainingDifferenceCount - RemainingDifferences.Count} more");
+            }
+
+            if (Warnings.Count > 0)
+            {
+                lines.Add(string.Empty);
+                lines.Add("Prototype warnings:");
+                foreach (var warning in Warnings.Take(6))
+                    lines.Add($"• {warning}");
+            }
+
+            lines.Add(string.Empty);
+            lines.Add(
+                "This is a local developer prototype only. It does not suppress real desync teardown or send rollback commands to peers.");
+
+            return string.Join(System.Environment.NewLine, lines);
+        }
+
+        private static string ShortenPath(string path)
+        {
+            const int max = 76;
+            return path.Length <= max ? path : "…" + path[(path.Length - (max - 1))..];
         }
     }
 }
