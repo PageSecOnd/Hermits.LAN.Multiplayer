@@ -2,9 +2,11 @@ using System.Collections;
 using System.Globalization;
 using System.Reflection;
 using Godot;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.Multiplayer;
+using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
@@ -65,7 +67,14 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 if (!runManager.IsInProgress || runManager.NetService.Type == NetGameType.Singleplayer)
                     return;
 
-                var state = NetFullCombatState.FromRun(runManager.State, action!);
+                var runState = GetRunState(runManager);
+                if (runState == null)
+                {
+                    GD.PushWarning("[LAN Multiplayer] Cannot capture combat checkpoint because RunManager.State is unavailable.");
+                    return;
+                }
+
+                var state = NetFullCombatState.FromRun(runState, action!);
                 var flattened = CombatStateFlattener.Flatten(state);
                 CombatCheckpoint checkpoint;
 
@@ -100,7 +109,11 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
         {
             try
             {
-                var localState = NetFullCombatState.FromRun(RunManager.Instance.State, null!);
+                var runState = GetRunState(RunManager.Instance);
+                if (runState == null)
+                    throw new InvalidOperationException("RunManager.State is unavailable while building the desync report.");
+
+                var localState = NetFullCombatState.FromRun(runState, null!);
                 var localSnapshot = CombatStateFlattener.Flatten(localState);
                 var remoteSnapshot = CombatStateFlattener.Flatten(remoteState);
                 var differences = CombatStateFlattener.Diff(
@@ -166,6 +179,11 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
         {
             lock (_gate)
                 return _checkpoints.Reverse().ToArray();
+        }
+
+        private static RunState? GetRunState(RunManager runManager)
+        {
+            return Traverse.Create(runManager).Property("State").GetValue<RunState?>();
         }
 
         private int GetCheckpointCount()
@@ -246,7 +264,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                     lines.Add($"  ... {TotalDifferenceCount - Differences.Count} additional difference(s) omitted.");
             }
 
-            return string.Join(Environment.NewLine, lines);
+            return string.Join(System.Environment.NewLine, lines);
         }
 
         public string ToPlayerText()
@@ -282,7 +300,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
 
             lines.Add(string.Empty);
             lines.Add("This branch records rollback-ready checkpoints and diagnostics. Automatic state restoration is not enabled yet.");
-            return string.Join(Environment.NewLine, lines);
+            return string.Join(System.Environment.NewLine, lines);
         }
 
         private static string ShortenPath(string path)
