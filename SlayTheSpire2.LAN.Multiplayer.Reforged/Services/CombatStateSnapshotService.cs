@@ -23,8 +23,10 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
         public static CombatStateSnapshotService Instance => Lazy.Value;
 
         private readonly LinkedList<CombatCheckpoint> _checkpoints = new();
+        private readonly Dictionary<ulong, uint> _pendingDivergenceChecksums = new();
         private readonly object _gate = new();
         private long _nextSequence;
+        private uint? _lastGeneratedChecksumId;
 
         private CombatStateSnapshotService()
         {
@@ -35,13 +37,27 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             lock (_gate)
             {
                 _checkpoints.Clear();
+                _pendingDivergenceChecksums.Clear();
                 _nextSequence = 0;
+                _lastGeneratedChecksumId = null;
             }
 
             GD.Print("[LAN Multiplayer] Cleared combat checkpoint history for a new combat.");
         }
 
-        public void CaptureTurnCheckpoint(string context, GameAction? action)
+        public void ObserveChecksum(NetChecksumData checksum)
+        {
+            lock (_gate)
+                _lastGeneratedChecksumId = checksum.id;
+        }
+
+        public void RememberRemoteDivergenceChecksum(ulong remotePlayerId, uint checksumId)
+        {
+            lock (_gate)
+                _pendingDivergenceChecksums[remotePlayerId] = checksumId;
+        }
+
+        public void CaptureTurnCheckpoint(string context, GameAction? action, NetChecksumData checksum)
         {
             try
             {
@@ -57,6 +73,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 {
                     checkpoint = new CombatCheckpoint(
                         ++_nextSequence,
+                        checksum.id,
                         DateTimeOffset.UtcNow,
                         context,
                         state,
@@ -68,8 +85,9 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 }
 
                 GD.Print(
-                    $"[LAN Multiplayer] Captured combat checkpoint #{checkpoint.Sequence} ({context}); " +
-                    $"retaining the latest {GetCheckpointCount()}/{MaxCheckpoints} checkpoint(s).");
+                    $"[LAN Multiplayer] Captured combat checkpoint #{checkpoint.Sequence} " +
+                    $"at checksum {checkpoint.ChecksumId} ({context}); retaining the latest " +
+                    $"{GetCheckpointCount()}/{MaxCheckpoints} checkpoint(s).");
             }
             catch (Exception exception)
             {
@@ -92,31 +110,51 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                     out var totalDifferenceCount);
 
                 CombatCheckpoint? latestCheckpoint;
+                CombatCheckpoint? rollbackCandidate;
                 int checkpointCount;
+                uint? divergenceChecksumId;
+
                 lock (_gate)
                 {
                     latestCheckpoint = _checkpoints.Last?.Value;
                     checkpointCount = _checkpoints.Count;
+                    divergenceChecksumId = _pendingDivergenceChecksums.Remove(remotePlayerId, out var remembered)
+                        ? remembered
+                        : _lastGeneratedChecksumId;
+
+                    rollbackCandidate = divergenceChecksumId.HasValue
+                        ? _checkpoints.LastOrDefault(checkpoint => checkpoint.ChecksumId <= divergenceChecksumId.Value)
+                        : latestCheckpoint;
                 }
 
                 return new DesyncDiagnosticReport(
                     remotePlayerId,
                     DateTimeOffset.UtcNow,
+                    divergenceChecksumId,
                     totalDifferenceCount,
                     differences,
                     checkpointCount,
                     latestCheckpoint?.Sequence,
+                    latestCheckpoint?.ChecksumId,
                     latestCheckpoint?.CapturedAtUtc,
-                    latestCheckpoint?.Context);
+                    latestCheckpoint?.Context,
+                    rollbackCandidate?.Sequence,
+                    rollbackCandidate?.ChecksumId,
+                    rollbackCandidate?.Context);
             }
             catch (Exception exception)
             {
                 return new DesyncDiagnosticReport(
                     remotePlayerId,
                     DateTimeOffset.UtcNow,
+                    null,
                     -1,
                     Array.Empty<StateDifference>(),
                     GetCheckpointCount(),
+                    null,
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -139,6 +177,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
 
     internal sealed record CombatCheckpoint(
         long Sequence,
+        uint ChecksumId,
         DateTimeOffset CapturedAtUtc,
         string Context,
         NetFullCombatState State,
@@ -149,12 +188,17 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
     internal sealed record DesyncDiagnosticReport(
         ulong RemotePlayerId,
         DateTimeOffset DetectedAtUtc,
+        uint? DivergenceChecksumId,
         int TotalDifferenceCount,
         IReadOnlyList<StateDifference> Differences,
         int CheckpointCount,
         long? LatestCheckpointSequence,
+        uint? LatestCheckpointChecksumId,
         DateTimeOffset? LatestCheckpointAtUtc,
         string? LatestCheckpointContext,
+        long? RollbackCandidateSequence,
+        uint? RollbackCandidateChecksumId,
+        string? RollbackCandidateContext,
         string? DiagnosticFailure = null)
     {
         public string ToLogText()
@@ -169,6 +213,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             {
                 $"[LAN Multiplayer] Multiplayer state divergence detected with player {RemotePlayerId}.",
                 $"Detected at UTC: {DetectedAtUtc:O}",
+                $"Divergence checksum: {(DivergenceChecksumId?.ToString(CultureInfo.InvariantCulture) ?? "unknown")}",
                 $"Different state values: {TotalDifferenceCount}",
                 $"Stored turn checkpoints: {CheckpointCount}"
             };
@@ -176,8 +221,15 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             if (LatestCheckpointSequence.HasValue)
             {
                 lines.Add(
-                    $"Latest checkpoint: #{LatestCheckpointSequence} at {LatestCheckpointAtUtc:O} " +
-                    $"({LatestCheckpointContext})");
+                    $"Latest checkpoint: #{LatestCheckpointSequence} checksum={LatestCheckpointChecksumId} " +
+                    $"at {LatestCheckpointAtUtc:O} ({LatestCheckpointContext})");
+            }
+
+            if (RollbackCandidateSequence.HasValue)
+            {
+                lines.Add(
+                    $"Rollback candidate: #{RollbackCandidateSequence} checksum={RollbackCandidateChecksumId} " +
+                    $"({RollbackCandidateContext})");
             }
 
             if (Differences.Count == 0)
@@ -209,12 +261,16 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             {
                 "Multiplayer data is out of sync.",
                 $"Peer: {RemotePlayerId}",
+                $"Checksum: {(DivergenceChecksumId?.ToString(CultureInfo.InvariantCulture) ?? "unknown")}",
                 $"Detected differences: {TotalDifferenceCount}",
                 $"Saved turn checkpoints: {CheckpointCount}"
             };
 
             if (LatestCheckpointSequence.HasValue)
-                lines.Add($"Latest checkpoint: #{LatestCheckpointSequence} ({LatestCheckpointContext})");
+                lines.Add($"Latest checkpoint: #{LatestCheckpointSequence}, checksum {LatestCheckpointChecksumId}");
+
+            if (RollbackCandidateSequence.HasValue)
+                lines.Add($"Rollback candidate: #{RollbackCandidateSequence}, checksum {RollbackCandidateChecksumId}");
 
             if (Differences.Count > 0)
             {
@@ -225,7 +281,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             }
 
             lines.Add(string.Empty);
-            lines.Add("The current version records diagnostics and checkpoints only; automatic rollback is not enabled yet.");
+            lines.Add("This branch records rollback-ready checkpoints and diagnostics. Automatic state restoration is not enabled yet.");
             return string.Join(Environment.NewLine, lines);
         }
 
