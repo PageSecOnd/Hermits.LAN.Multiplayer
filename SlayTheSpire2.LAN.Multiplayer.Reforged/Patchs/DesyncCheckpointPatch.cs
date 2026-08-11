@@ -65,8 +65,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
     /// <summary>
     /// RunManager.StateDiverged is the game's existing escalation point after checksum disagreement.
-    /// This prefix is deliberately observational: it records a field-level diff and shows it to the
-    /// player, then allows the original game behavior to continue unchanged.
+    /// This prefix records a field-level diff and persists it before the vanilla disconnect/teardown path runs.
     /// </summary>
     [HarmonyPatch(typeof(RunManager), "StateDiverged")]
     internal static class RunManagerStateDivergedDiagnosticsPatch
@@ -75,12 +74,13 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
         {
             var report = CombatStateSnapshotService.Instance.BuildDesyncReport(__0, __1);
             var logText = report.ToLogText();
+            var reportPath = DesyncDiagnosticPersistence.Save(report);
 
             GD.PushError(logText);
-            ShowDiagnosticDialog(report);
+            ShowDiagnosticDialog(report, reportPath);
         }
 
-        private static void ShowDiagnosticDialog(DesyncDiagnosticReport report)
+        private static void ShowDiagnosticDialog(DesyncDiagnosticReport report, string? reportPath)
         {
             try
             {
@@ -91,11 +91,15 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
                 var previous = root.GetNodeOrNull<AcceptDialog>("LanMultiplayerDesyncDiagnostic");
                 previous?.QueueFree();
 
+                var dialogText = report.ToPlayerText();
+                if (!string.IsNullOrWhiteSpace(reportPath))
+                    dialogText += $"{Environment.NewLine}{Environment.NewLine}Report saved to:{Environment.NewLine}{reportPath}";
+
                 var dialog = new AcceptDialog
                 {
                     Name = "LanMultiplayerDesyncDiagnostic",
                     Title = "LAN Multiplayer - Desync detected",
-                    DialogText = report.ToPlayerText(),
+                    DialogText = dialogText,
                     MinSize = new Vector2I(720, 420),
                     Unresizable = false,
                     Exclusive = false
