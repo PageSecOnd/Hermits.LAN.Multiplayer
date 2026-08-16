@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Multiplayer;
@@ -81,7 +81,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
             foreach (var syncDatum in syncData)
             {
-                if (runLobby != null && !runLobby.ConnectedPlayerIds.Contains(syncDatum.Key))
+                if (runLobby != null && !runLobby.PlayerIds.Contains(syncDatum.Key))
                 {
                     logger.Debug($"Skipping sync for disconnected player {syncDatum.Key}");
                     continue;

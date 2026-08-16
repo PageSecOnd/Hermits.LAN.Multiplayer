@@ -17,9 +17,22 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
     [HarmonyPatch(typeof(NJoinFriendScreen), "_Ready")]
     internal class NJoinFriendScreenReadyPatch
     {
-        private static void Prefix(NJoinFriendScreen __instance)
+        private static void Postfix(NJoinFriendScreen __instance)
         {
-            var panel = __instance.GetNode<NinePatchRect>("Panel");
+            // Run after the vanilla _Ready so a LAN UI failure cannot leave the
+            // original join screen half-initialized.
+            var panel = __instance.GetNodeOrNull<NinePatchRect>("Panel") ??
+                        __instance.FindChild("Panel", true, false) as NinePatchRect;
+            var refreshButton = __instance.GetNodeOrNull<NJoinFriendRefreshButton>("RefreshButton") ??
+                                __instance.FindChild("RefreshButton", true, false) as NJoinFriendRefreshButton;
+            var titleLabel = __instance.GetNodeOrNull<MegaLabel>("TitleLabel") ??
+                             __instance.FindChild("TitleLabel", true, false) as MegaLabel;
+
+            if (panel == null || refreshButton == null || titleLabel == null)
+            {
+                GD.PushWarning("[LAN Multiplayer] Join-friend scene layout changed; LAN join panel was not injected.");
+                return;
+            }
 
             var lanPanel = new NinePatchRect
             {
@@ -56,7 +69,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
 
             vBoxContainer.AddChildSafely(addressLineEdit);
 
-            var joinButton = JoinButton.Create(__instance.GetNode<NJoinFriendRefreshButton>("RefreshButton"));
+            var joinButton = JoinButton.Create(refreshButton);
             joinButton.Name = "JointButton";
             vBoxContainer.AddChildSafely(joinButton);
 
@@ -93,7 +106,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
                 }
             }));
 
-            var ipAddressLabel = (MegaLabel)__instance.GetNode("TitleLabel").Duplicate();
+            var ipAddressLabel = (MegaLabel)titleLabel.Duplicate();
             ipAddressLabel.CustomMinimumSize = new Vector2(300, 0);
             ipAddressLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
             lanPanel.AddChildSafely(ipAddressLabel);
@@ -103,5 +116,3 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
         }
     }
 }
-
-

@@ -7,7 +7,7 @@
   <FileVersion>1.6.3.1</FileVersion>
   <GodotDisabledSourceGenerators>ScriptPathAttribute</GodotDisabledSourceGenerators>
 
-  <Sts2Dir>E:\SteamLibrary\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64</Sts2Dir>
+  <Sts2Dir>D:\Soft\steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64</Sts2Dir>
 </PropertyGroup>
 
 <ItemGroup>
