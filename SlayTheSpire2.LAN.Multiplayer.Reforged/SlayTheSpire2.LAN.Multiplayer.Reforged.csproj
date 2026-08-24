@@ -3,11 +3,14 @@
   <TargetFramework>net9.0</TargetFramework>
   <ImplicitUsings>enable</ImplicitUsings>
   <Nullable>enable</Nullable>
-  <AssemblyVersion>1.6.3.1</AssemblyVersion>
-  <FileVersion>1.6.3.1</FileVersion>
+  <AssemblyVersion>2.0.0.0</AssemblyVersion>
+  <FileVersion>2.0.0.0</FileVersion>
+  <Version>2.0.0</Version>
+  <Deterministic>true</Deterministic>
   <GodotDisabledSourceGenerators>ScriptPathAttribute</GodotDisabledSourceGenerators>
 
-  <Sts2Dir>E:\SteamLibrary\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64</Sts2Dir>
+  <Sts2Dir Condition="'$(Sts2Dir)' == '' and '$(STS2_DIR)' != ''">$(STS2_DIR)</Sts2Dir>
+  <Sts2Dir Condition="'$(Sts2Dir)' == ''">E:\SteamLibrary\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64</Sts2Dir>
 </PropertyGroup>
 
 <ItemGroup>
@@ -23,11 +26,6 @@
 
   <Reference Include="GodotSharp">
     <HintPath>$(Sts2Dir)\GodotSharp.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
-
-  <Reference Include="Steamworks.NET">
-    <HintPath>$(Sts2Dir)\Steamworks.NET.dll</HintPath>
     <Private>false</Private>
   </Reference>
 

@@ -21,10 +21,16 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
             yield return typeof(StartRunLobby).GetConstructor([
                 typeof(GameMode), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)
             ])!;
-            yield return typeof(RunLobby).GetConstructor([
-                typeof(GameMode), typeof(INetGameService), typeof(IRunLobbyListener), typeof(IPlayerCollection),
-                typeof(IEnumerable<ulong>)
-            ])!;
+            var runLobbyConstructor = typeof(RunLobby).GetConstructors().SingleOrDefault(constructor =>
+            {
+                var parameters = constructor.GetParameters();
+                return parameters.Length == 5 && parameters[0].ParameterType == typeof(GameMode) &&
+                       parameters[1].ParameterType == typeof(INetGameService) &&
+                       parameters[2].ParameterType == typeof(IRunLobbyListener) &&
+                       parameters[3].ParameterType == typeof(IPlayerCollection);
+            });
+            if (runLobbyConstructor != null)
+                yield return runLobbyConstructor;
             yield return typeof(LoadRunLobby).GetConstructor([
                 typeof(INetGameService), typeof(ILoadRunLobbyListener), typeof(SerializableRun)
             ])!;

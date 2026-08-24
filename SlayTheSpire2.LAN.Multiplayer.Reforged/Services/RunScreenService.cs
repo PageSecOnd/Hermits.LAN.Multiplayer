@@ -7,6 +7,7 @@ using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.DailyRun;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 
 namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
 {
@@ -34,11 +35,12 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
 
         public static async Task<bool> ShouldAllowRunToBegin(LoadRunLobby runLobby)
         {
-            if (runLobby.ConnectedPlayerIds.Count >= runLobby.Run.Players.Count)
+            var connectedPlayerCount = GameCompatibility.GetConnectedPlayerIds(runLobby).Count;
+            if (connectedPlayerCount >= runLobby.Run.Players.Count)
                 return true;
 
             var locString = new LocString("gameplay_ui", "CONFIRM_LOAD_SAVE.body");
-            locString.Add("MissingCount", runLobby.Run.Players.Count - runLobby.ConnectedPlayerIds.Count);
+            locString.Add("MissingCount", runLobby.Run.Players.Count - connectedPlayerCount);
 
             var nGenericPopup = NGenericPopup.Create();
             if (nGenericPopup != null)

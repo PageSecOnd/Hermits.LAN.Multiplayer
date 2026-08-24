@@ -7,6 +7,7 @@ using MegaCrit.Sts2.Core.Platform;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Models;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 
 // ReSharper disable UnusedMember.Global
 // ReSharper disable UnusedType.Global
@@ -26,15 +27,16 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
         {
             var result = await clientLobbyJoinResponseMessage;
 
-            if (joinFlow.NetService is not { Platform: PlatformType.None })
+            var netService = GameCompatibility.GetNetService(joinFlow);
+            if (netService is not { Platform: PlatformType.None })
                 return result;
 
             var lanPlayerNameService = LanPlayerNameService.Instance;
 
-            joinFlow.NetService.RegisterMessageHandler<LanPlayerNameResponseMessage>(lanPlayerNameService
+            netService.RegisterMessageHandler<LanPlayerNameResponseMessage>(lanPlayerNameService
                 .HandleLanPlayerNameResponseMessage);
 
-            await lanPlayerNameService.AttemptPlayerName(joinFlow.NetService);
+            await lanPlayerNameService.AttemptPlayerName(netService);
 
             return result;
         }
@@ -53,15 +55,16 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
         {
             var result = await clientLoadJoinResponseMessage;
 
-            if (joinFlow.NetService is not { Platform: PlatformType.None })
+            var netService = GameCompatibility.GetNetService(joinFlow);
+            if (netService is not { Platform: PlatformType.None })
                 return result;
 
             var lanPlayerNameService = LanPlayerNameService.Instance;
 
-            joinFlow.NetService.RegisterMessageHandler<LanPlayerNameResponseMessage>(lanPlayerNameService
+            netService.RegisterMessageHandler<LanPlayerNameResponseMessage>(lanPlayerNameService
                 .HandleLanPlayerNameResponseMessage);
 
-            await lanPlayerNameService.AttemptPlayerName(joinFlow.NetService);
+            await lanPlayerNameService.AttemptPlayerName(netService);
 
             return result;
         }
@@ -80,15 +83,16 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
         {
             var result = await clientRejoinResponseMessage;
 
-            if (joinFlow.NetService is not { Platform: PlatformType.None })
+            var netService = GameCompatibility.GetNetService(joinFlow);
+            if (netService is not { Platform: PlatformType.None })
                 return result;
 
             var lanPlayerNameService = LanPlayerNameService.Instance;
 
-            joinFlow.NetService.RegisterMessageHandler<LanPlayerNameResponseMessage>(lanPlayerNameService
+            netService.RegisterMessageHandler<LanPlayerNameResponseMessage>(lanPlayerNameService
                 .HandleLanPlayerNameResponseMessage);
 
-            await lanPlayerNameService.AttemptPlayerName(joinFlow.NetService);
+            await lanPlayerNameService.AttemptPlayerName(netService);
 
             return result;
         }
@@ -99,7 +103,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
     {
         private static void Postfix(JoinFlow __instance, NetErrorInfo info)
         {
-            if (__instance.NetService is { Platform: PlatformType.None })
+            if (GameCompatibility.GetNetService(__instance) is { Platform: PlatformType.None })
             {
                 var lanPlayerNameCompletion = LanPlayerNameService.Instance.LanPlayerNameCompletion;
 
@@ -120,7 +124,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
     {
         private static void Postfix(JoinFlow __instance)
         {
-            if (__instance.NetService is { Platform: PlatformType.None })
+            if (GameCompatibility.GetNetService(__instance) is { Platform: PlatformType.None })
             {
                 var lanPlayerNameCompletion = LanPlayerNameService.Instance.LanPlayerNameCompletion;
 

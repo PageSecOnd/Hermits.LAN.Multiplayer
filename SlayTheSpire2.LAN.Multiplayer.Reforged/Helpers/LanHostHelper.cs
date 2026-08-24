@@ -17,6 +17,7 @@ using MegaCrit.Sts2.Core.Platform;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 
 // ReSharper disable MemberCanBePrivate.Global
 // ReSharper disable UnusedType.Global
@@ -41,10 +42,9 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
             loadingOverlay.Visible = true;
             try
             {
-                var netService = new NetHostGameService();
-                NetErrorInfo? netErrorInfo = null;
-                //Add one more max client to send the full lobby message
-                netService.StartENetHost(port, maxPlayers + 1);
+                var netService = GameCompatibility.CreateHostGameService();
+                maxPlayers = LanProtocolPolicy.ClampPlayerCount(maxPlayers);
+                var netErrorInfo = netService.StartENetHost(port, maxPlayers);
                 Log.Info($"HostGame open on port:{port}");
                 if (!netErrorInfo.HasValue)
                 {
@@ -84,7 +84,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
             }
             catch
             {
-                var nErrorPopup2 = NErrorPopup.Create(new NetErrorInfo(NetError.InternalError, selfInitiated: false));
+                var nErrorPopup2 = NErrorPopup.Create(new NetErrorInfo(RuntimeNetErrors.InternalError, selfInitiated: false));
                 if (nErrorPopup2 != null)
                 {
                     NModalContainer.Instance?.Add(nErrorPopup2);
@@ -104,9 +104,9 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
             loadingOverlay.Visible = true;
             try
             {
-                var netService = new NetHostGameService();
-                NetErrorInfo? netErrorInfo = null;
-                netService.StartENetHost(port, maxPlayers + 1);
+                var netService = GameCompatibility.CreateHostGameService();
+                maxPlayers = LanProtocolPolicy.ClampPlayerCount(maxPlayers);
+                var netErrorInfo = netService.StartENetHost(port, maxPlayers);
                 Log.Info($"HostGame open on port:{port}");
                 if (!netErrorInfo.HasValue)
                 {

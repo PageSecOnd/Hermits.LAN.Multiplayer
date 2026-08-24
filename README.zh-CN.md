@@ -52,10 +52,15 @@
 已测试环境：
 
 ```text
-Slay the Spire 2 v0.107.1
+《杀戮尖塔 2》正式版（2026-08-24 提供的程序集）
+《杀戮尖塔 2》Beta 版（2026-08-24 提供的程序集）
 Godot 4.5.1 Mono
 .NET 9
 ```
+
+2.0 版对正式版与 Beta 版只发布一个 DLL。已知 API 差异会在运行时探测并适配，各 Harmony Patch 组也会独立加载；因此，某个无关的游戏内部接口发生变化时，不会再导致整个 Mod 启动失败。
+
+房间人数有意限制为游戏原生支持的四个槽位。这样可以完全沿用原版多人协议，避免重新改写大厅封包所带来的崩溃、不同步和跨版本失效问题。
 
 BaseLib 是本 Mod 的必需依赖。如果 BaseLib 未安装、未启用或版本不兼容，本 Mod 将无法正常加载。
 
@@ -226,6 +231,14 @@ cd SlayTheSpire2.LAN.Multiplayer.Reforged
 ```bat
 build.bat
 ```
+
+如果游戏不在项目默认路径，请将 `STS2_DIR` 设置为包含 `sts2.dll`、`GodotSharp.dll` 与 `0Harmony.dll` 的目录。维护者可以使用下列命令同时验证两个游戏渠道：
+
+```powershell
+./scripts/verify-dual-version.ps1 -StableDir <正式版数据目录> -BetaDir <Beta版数据目录>
+```
+
+适配后续游戏更新前，请先阅读[兼容架构说明](docs/COMPATIBILITY.md)。
 
 编译后的 DLL 通常位于：
 

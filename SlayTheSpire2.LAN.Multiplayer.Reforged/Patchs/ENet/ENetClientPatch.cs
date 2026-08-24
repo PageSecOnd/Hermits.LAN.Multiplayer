@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.Multiplayer.Transport;
 using MegaCrit.Sts2.Core.Multiplayer.Transport.ENet;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 using Logger = MegaCrit.Sts2.Core.Logging.Logger;
 
 // ReSharper disable UnusedMember.Global
@@ -49,7 +50,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.ENet
                     await Task.Delay(100, cancelToken);
                     if (cancelToken.IsCancellationRequested)
                     {
-                        eNetClient.DisconnectFromHost(NetError.CancelledJoin);
+                        eNetClient.DisconnectFromHost(RuntimeNetErrors.CancelledJoin);
                         logger.Warn("User cancelled join flow");
                         return null;
                     }
@@ -59,14 +60,14 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.ENet
                     {
                         peer.Reset();
                         logger.Error("Connection timed out!");
-                        return new NetErrorInfo(NetError.Timeout, selfInitiated: false);
+                        return new NetErrorInfo(RuntimeNetErrors.Timeout, selfInitiated: false);
                     }
                 }
 
                 if (peer.GetState() != ENetPacketPeer.PeerState.Connected)
                 {
                     logger.Error($"Connection to {ip}:{port} failed!");
-                    return new NetErrorInfo(NetError.UnknownNetworkError, selfInitiated: false);
+                    return new NetErrorInfo(RuntimeNetErrors.UnknownNetworkError, selfInitiated: false);
                 }
 
                 var bufferedPackets = new List<ENetServiceData>();
@@ -76,7 +77,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.ENet
                 {
                     peer.PeerDisconnect();
 
-                    if (result.Value.GetReason() == NetError.Kicked)
+                    if (result.Value.GetReason() == RuntimeNetErrors.Kicked)
                     {
                         netId = newNetId;
                         continue;
@@ -115,7 +116,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.ENet
                 if (cancelToken.IsCancellationRequested)
                 {
                     logger.Warn("User cancelled join flow");
-                    eNetClient.DisconnectFromHost(NetError.CancelledJoin);
+                    eNetClient.DisconnectFromHost(RuntimeNetErrors.CancelledJoin);
                     return (null, netId);
                 }
 
@@ -134,20 +135,20 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.ENet
                     {
                         logger.Error(
                             $"Received net ID ({eNetHandshakeResponse.netId}) during handshake that did not match ours!");
-                        return (new NetErrorInfo(NetError.InternalError, selfInitiated: false), netId);
+                        return (new NetErrorInfo(RuntimeNetErrors.InternalError, selfInitiated: false), netId);
                     }
 
                     if (eNetHandshakeResponse.status == ENetHandshakeStatus.IdCollision)
                     {
                         logger.Warn(
                             $"NetID:{netId} already occupied, Next try host send new NetID:{eNetHandshakeResponse.newNetId}");
-                        return (new NetErrorInfo(NetError.Kicked, selfInitiated: false),
+                        return (new NetErrorInfo(RuntimeNetErrors.Kicked, selfInitiated: false),
                             eNetHandshakeResponse.newNetId);
                     }
                     else if (eNetHandshakeResponse.status != ENetHandshakeStatus.Success)
                     {
                         logger.Error($"Received non-success code during handshake ({eNetHandshakeResponse.status})!");
-                        return (new NetErrorInfo(NetError.Kicked, selfInitiated: false), netId);
+                        return (new NetErrorInfo(RuntimeNetErrors.Kicked, selfInitiated: false), netId);
                     }
 
                     receivedAck = true;
@@ -157,8 +158,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.ENet
                 if (timeoutTimer > SettingsService.Instance.SettingsModel.ConnectTimeoutSeconds * 1000)
                 {
                     logger.Error("Timed out waiting for handshake ack!");
-                    eNetClient.DisconnectFromHost(NetError.Timeout);
-                    return (new NetErrorInfo(NetError.Timeout, selfInitiated: false), netId);
+                    eNetClient.DisconnectFromHost(RuntimeNetErrors.Timeout);
+                    return (new NetErrorInfo(RuntimeNetErrors.Timeout, selfInitiated: false), netId);
                 }
             }
 
@@ -166,5 +167,4 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.ENet
         }
     }
 }
-
 

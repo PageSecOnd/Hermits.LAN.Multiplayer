@@ -7,6 +7,7 @@ using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Components;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 
 // ReSharper disable UnusedMember.Global
 // ReSharper disable UnusedType.Global
@@ -16,19 +17,28 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
     [HarmonyPatch(typeof(NSettingsScreen), "_Ready")]
     internal class NSettingsScreenReadyPatch
     {
-        [HarmonyReversePatch]
-        [HarmonyPatch(typeof(NSettingsPanel), "RefreshSize")]
-        private static void RefreshSize(NSettingsPanel instance)
+        private static void Postfix(NSettingsScreen __instance)
         {
-            throw new NotImplementedException();
+            try
+            {
+                AddLanSettings(__instance);
+            }
+            catch (Exception exception)
+            {
+                GD.PushWarning($"[LAN Multiplayer] Settings UI was not injected: {exception.GetBaseException().Message}");
+            }
         }
 
-        private static void Prefix(NSettingsScreen __instance)
+        private static void AddLanSettings(NSettingsScreen __instance)
         {
             if (ModConfigBridge.IsAvailable)
                 return;
 
-            var moddingNode = __instance.GetNode("%Modding");
+            var moddingNode = __instance.GetNodeOrNull("%Modding") ??
+                              throw new InvalidOperationException("The Modding settings row was not found.");
+
+            if (moddingNode.GetParent().GetNodeOrNull("HostPort") != null)
+                return;
 
             var vBoxContainerNode = moddingNode.GetParent();
 
@@ -79,16 +89,19 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             var hostMaxPlayersInput = new SpinBox
             {
                 Name = "HostMaxPlayersInput", CustomMinimumSize = new Vector2(324, 64),
-                SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd, Step = 1, MinValue = 2,
+                SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd, Step = 1,
+                MinValue = LanProtocolPolicy.MinPlayers, MaxValue = LanProtocolPolicy.MaxPlayers
             };
 
             hostMaxPlayersInput.GetLineEdit().Alignment = HorizontalAlignment.Center;
             hostMaxPlayers.AddChildSafely(hostMaxPlayersInput);
 
-            hostMaxPlayersInput.Value = SettingsService.Instance.SettingsModel.HostMaxPlayers;
+            hostMaxPlayersInput.Value = LanProtocolPolicy.ClampPlayerCount(
+                SettingsService.Instance.SettingsModel.HostMaxPlayers);
             hostMaxPlayersInput.ValueChanged += value =>
             {
-                SettingsService.Instance.SettingsModel.HostMaxPlayers = (int)value;
+                SettingsService.Instance.SettingsModel.HostMaxPlayers =
+                    LanProtocolPolicy.ClampPlayerCount((int)value);
                 SettingsService.Instance.WriteSettings();
             };
 
@@ -174,37 +187,41 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             vBoxContainerNode.MoveChild(netId, netIdDivider.GetIndex() + 1);
 
             var generalSettings = (NSettingsPanel)vBoxContainerNode.GetParent();
-            RefreshSize(generalSettings);
+            AccessTools.Method(typeof(NSettingsPanel), "RefreshSize")?.Invoke(generalSettings, null);
+            NSettingsScreenLocalizeLabelsPatch.Localize(__instance);
         }
     }
 
     [HarmonyPatch(typeof(NSettingsScreen), "LocalizeLabels")]
     internal class NSettingsScreenLocalizeLabelsPatch
     {
-        [HarmonyReversePatch]
-        [HarmonyPatch(typeof(NSettingsScreen), "LocHelper")]
-        private static void LocHelper(Node settingsLineNode, LocString locString)
+        private static void Postfix(NSettingsScreen __instance)
         {
-            throw new NotImplementedException();
+            Localize(__instance);
         }
 
-        private static void Prefix(NSettingsScreen __instance)
+        internal static void Localize(NSettingsScreen __instance)
         {
             if (ModConfigBridge.IsAvailable)
                 return;
 
-            var content = __instance.GetNode<NSettingsPanel>("%GeneralSettings").Content;
+            var content = __instance.GetNodeOrNull<NSettingsPanel>("%GeneralSettings")?.Content;
+            var locHelper = AccessTools.Method(typeof(NSettingsScreen), "LocHelper");
+            if (content == null || locHelper == null)
+                return;
 
-            LocHelper(content.GetNode<Node>("HostPort"),
-                new LocString("settings_ui", "SlayTheSpire2.LAN.Multiplayer.Reforged.HOST_PORT"));
-            LocHelper(content.GetNode<Node>("HostMaxPlayers"),
-                new LocString("settings_ui", "SlayTheSpire2.LAN.Multiplayer.Reforged.HOST_MAX_PLAYERS"));
-            LocHelper(content.GetNode<Node>("PlayerName"),
-                new LocString("settings_ui", "SlayTheSpire2.LAN.Multiplayer.Reforged.PLAYER_NAME"));
-            LocHelper(content.GetNode<Node>("NetID"),
-                new LocString("settings_ui", "SlayTheSpire2.LAN.Multiplayer.Reforged.NET_ID"));
+            Apply(content, locHelper, "HostPort", "SlayTheSpire2.LAN.Multiplayer.Reforged.HOST_PORT");
+            Apply(content, locHelper, "HostMaxPlayers", "SlayTheSpire2.LAN.Multiplayer.Reforged.HOST_MAX_PLAYERS");
+            Apply(content, locHelper, "PlayerName", "SlayTheSpire2.LAN.Multiplayer.Reforged.PLAYER_NAME");
+            Apply(content, locHelper, "NetID", "SlayTheSpire2.LAN.Multiplayer.Reforged.NET_ID");
+        }
+
+        private static void Apply(Node content, System.Reflection.MethodInfo locHelper, string nodeName, string key)
+        {
+            var node = content.GetNodeOrNull<Node>(nodeName);
+            if (node != null)
+                locHelper.Invoke(null, [node, new LocString("settings_ui", key)]);
         }
     }
 }
-
 

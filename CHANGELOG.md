@@ -6,6 +6,36 @@ The format is loosely based on Keep a Changelog, and this project follows Semant
 
 ---
 
+## [2.0.0] - 2026-08-24
+
+### Added
+
+* Added a runtime compatibility layer for the current stable and beta game assemblies.
+* Added version-aware construction for multiplayer services with and without `PeerVersionInfo`.
+* Added runtime name lookup for `NetError` values whose numeric layout differs between channels.
+* Added isolated Harmony patch bootstrap so one incompatible patch group does not abort the entire mod.
+* Added a dual-channel build verification script and compatibility maintenance guide.
+
+### Changed
+
+* Reworked join, lobby, save-path and controller-input access around capability detection.
+* Improved the direct LAN join panel layout, input hinting and scene-layout fallbacks.
+* Made the fallback settings UI additive, idempotent and failure-isolated.
+* Removed the hard dependency on `Steamworks.NET` for default player names.
+* Made the game assembly directory configurable through `Sts2Dir` or `STS2_DIR`.
+* Limited LAN lobbies to the vanilla four-slot protocol.
+
+### Removed
+
+* Removed custom lobby player serialization patches, which were the largest source of protocol and update breakage.
+
+### Verified
+
+* Zero-warning Release builds against both stable and beta assembly sets supplied on 2026-08-24.
+* Decompiled outputs from both builds are semantically identical.
+
+---
+
 ## [1.1.1] - 2026-06-24
 
 ### Fixed

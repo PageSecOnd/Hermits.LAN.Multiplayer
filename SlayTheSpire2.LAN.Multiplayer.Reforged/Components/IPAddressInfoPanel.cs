@@ -8,6 +8,7 @@ using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
 using BoxContainer = Godot.BoxContainer;
 using Control = Godot.Control;
 using HttpClient = System.Net.Http.HttpClient;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 
 namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
 {
@@ -232,7 +233,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
 
         private void UpdateController()
         {
-            if (NControllerManager.Instance?.IsUsingController ?? false)
+            if (GameCompatibility.IsUsingController())
             {
                 ShowBox();
             }
@@ -370,7 +371,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
 
         private void OnMouseEntered()
         {
-            if (NControllerManager.Instance?.IsUsingController ?? false)
+            if (GameCompatibility.IsUsingController())
                 return;
 
             ShowBox();
@@ -378,7 +379,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
 
         private void OnMouseExited()
         {
-            if (NControllerManager.Instance?.IsUsingController ?? false)
+            if (GameCompatibility.IsUsingController())
                 return;
 
             HideBox();

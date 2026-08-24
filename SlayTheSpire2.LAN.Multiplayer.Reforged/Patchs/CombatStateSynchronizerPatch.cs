@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Multiplayer.Messages.Game;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves.Runs;
 using Logger = MegaCrit.Sts2.Core.Logging.Logger;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 
 // ReSharper disable UnusedMember.Global
 // ReSharper disable UnusedType.Global
@@ -81,7 +82,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
             foreach (var syncDatum in syncData)
             {
-                if (runLobby != null && !runLobby.ConnectedPlayerIds.Contains(syncDatum.Key))
+                if (runLobby != null && !GameCompatibility.GetConnectedPlayerIds(runLobby).Contains(syncDatum.Key))
                 {
                     logger.Debug($"Skipping sync for disconnected player {syncDatum.Key}");
                     continue;

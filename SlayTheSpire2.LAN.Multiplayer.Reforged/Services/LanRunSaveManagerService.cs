@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Saves.Managers;
 using MegaCrit.Sts2.Core.Saves.Migrations;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Models;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 
 // ReSharper disable MemberCanBeMadeStatic.Local
 // ReSharper disable MemberCanBePrivate.Global
@@ -27,10 +28,10 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             .GetValue<MigrationManager>();
 
         public string CurrentMultiplayerRunSavePath =>
-            RunSaveManager.GetRunSavePath(ProfileIdProvider.CurrentProfileId, "current_lan_run_mp.save");
+            GameCompatibility.GetRunSavePath(ProfileIdProvider.CurrentProfileId, "current_lan_run_mp.save");
 
         public string CurrentMultiplayerRunPlayerNamesPath =>
-            RunSaveManager.GetRunSavePath(ProfileIdProvider.CurrentProfileId, "current_lan_run_mp_player_names.json");
+            GameCompatibility.GetRunSavePath(ProfileIdProvider.CurrentProfileId, "current_lan_run_mp_player_names.json");
 
         public bool HasMultiplayerRunSave => SaveStore.FileExists(CurrentMultiplayerRunSavePath);
 

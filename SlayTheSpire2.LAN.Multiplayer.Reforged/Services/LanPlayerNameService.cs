@@ -79,7 +79,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             NetService?.SendMessage(new LanPlayerNameResponseMessage { playerNames = PlayerNames });
         }
 
-        public async Task AttemptPlayerName(NetClientGameService gameService)
+        public async Task AttemptPlayerName(INetGameService gameService)
         {
             LanPlayerNameCompletion = new TaskCompletionSource<LanPlayerNameResponseMessage>();
             var message = new LanPlayerNameRequestMessage

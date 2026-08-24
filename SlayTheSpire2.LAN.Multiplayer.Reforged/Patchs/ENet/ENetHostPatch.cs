@@ -7,6 +7,7 @@ using MegaCrit.Sts2.Core.Multiplayer.Transport;
 using MegaCrit.Sts2.Core.Multiplayer.Transport.ENet;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Models;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 using Logger = MegaCrit.Sts2.Core.Logging.Logger;
 
 // ReSharper disable UnusedMember.Global
@@ -110,7 +111,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.ENet
             if (error != Error.Ok)
             {
                 ____logger.Error($"Failed to create host! {error}");
-                __result = new NetErrorInfo(error);
+                __result = new NetErrorInfo(RuntimeNetErrors.UnknownNetworkError, selfInitiated: false);
                 return false;
             }
 

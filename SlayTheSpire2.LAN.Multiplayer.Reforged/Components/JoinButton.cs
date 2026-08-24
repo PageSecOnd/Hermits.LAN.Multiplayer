@@ -38,9 +38,10 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
                 joinButton.AddChildSafely(child.Duplicate());
             }
 
-            var controllerIcon = joinButton.GetNode<TextureRect>("ControllerIcon");
-            controllerIcon.Owner = joinButton;
-            controllerIcon.Position = new Vector2(controllerIcon.Position.X - 12, controllerIcon.Position.Y);
+            AssignOwnerRecursively(joinButton, joinButton);
+
+            if (joinButton.FindChild("ControllerIcon", true, false) is TextureRect controllerIcon)
+                controllerIcon.Position = new Vector2(controllerIcon.Position.X - 12, controllerIcon.Position.Y);
 
             return joinButton;
         }
@@ -49,8 +50,17 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
         {
             base._Ready();
 
-            var node = GetNode<MegaLabel>("Label");
-            node.SetTextAutoSize(new LocString("main_menu_ui", "JOIN.title").GetFormattedText());
+            if (FindChild("Label", true, false) is MegaLabel node)
+                node.SetTextAutoSize(new LocString("main_menu_ui", "JOIN.title").GetFormattedText());
+        }
+
+        private static void AssignOwnerRecursively(Node node, Node owner)
+        {
+            foreach (var child in node.GetChildren())
+            {
+                child.Owner = owner;
+                AssignOwnerRecursively(child, owner);
+            }
         }
     }
 }

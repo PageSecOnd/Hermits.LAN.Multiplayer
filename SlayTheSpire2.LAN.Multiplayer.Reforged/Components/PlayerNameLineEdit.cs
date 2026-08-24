@@ -6,8 +6,9 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
 {
     internal partial class PlayerNameLineEdit : NMegaLineEdit
     {
-        [GeneratedRegex(@"[\x00-\x1F\x7F<>:""/\\|?*\x0B\x0C\x0D&;`#$%^+={}]")]
-        private static partial Regex InvalidCharsRegex();
+        private static readonly Regex InvalidCharsRegex = new(
+            @"[\x00-\x1F\x7F<>:""/\\|?*\x0B\x0C\x0D&;`#$%^+={}]",
+            RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
         public bool IsInvalid => GetPlayerNameIsInvalid(Text);
 
@@ -32,7 +33,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
         public static bool GetPlayerNameIsInvalid(string playerName)
         {
             return string.IsNullOrWhiteSpace(playerName) || playerName.StartsWith(' ') ||
-                   InvalidCharsRegex().IsMatch(playerName);
+                   InvalidCharsRegex.IsMatch(playerName);
         }
     }
 }

@@ -52,10 +52,15 @@ Optional:
 Tested with:
 
 ```text
-Slay the Spire 2 v0.107.1
+Slay the Spire 2 stable (assembly set supplied 2026-08-24)
+Slay the Spire 2 beta (assembly set supplied 2026-08-24)
 Godot 4.5.1 Mono
 .NET 9
 ```
+
+Version 2 uses one DLL for both stable and beta. Known API differences are resolved at runtime and individual Harmony patch groups fail independently, so an unrelated game API change no longer prevents the entire mod from loading.
+
+The maximum lobby size is intentionally limited to the game's native four slots. This keeps LAN traffic on the vanilla multiplayer wire format and avoids fragile custom lobby serialization.
 
 BaseLib is a required dependency. The mod will not load correctly if BaseLib is missing or disabled.
 
@@ -226,6 +231,14 @@ Build the project by running:
 ```bat
 build.bat
 ```
+
+Set `STS2_DIR` to the directory containing `sts2.dll`, `GodotSharp.dll` and `0Harmony.dll` when the game is not installed at the project default path. Maintainers can validate both channels with:
+
+```powershell
+./scripts/verify-dual-version.ps1 -StableDir <stable-data-dir> -BetaDir <beta-data-dir>
+```
+
+See [Compatibility architecture](docs/COMPATIBILITY.md) before adapting the mod to a future game update.
 
 The compiled DLL will normally be located at:
 
