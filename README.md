@@ -22,6 +22,8 @@ It replaces the standard online transport path with a direct ENet connection, al
 
 * Host multiplayer games over a local network
 * Join multiplayer sessions using an IP address and port
+* Automatically discover joinable games on the local network
+* Display live discovery latency, rolling packet loss and connection quality
 * Supports Standard, Daily and Custom multiplayer runs
 * Continue existing LAN multiplayer saves
 * Uses separate LAN multiplayer save data
@@ -125,6 +127,12 @@ localhost
 ```
 
 When no port is entered, the configured default LAN port is used.
+
+### Nearby LAN rooms
+
+While the join screen is open, the mod sends a small discovery probe once per second. Hosts answer directly and appear in the nearby-room list with occupancy, game mode, latency, rolling packet loss and an overall quality rating. Select an available room to join it immediately.
+
+Discovery uses UDP port `33770`. If discovery is blocked by a firewall or unsupported by the current virtual network, manual address entry continues to work normally. The discovery responder only accepts probes originating from a locally attached IPv4 subnet.
 
 ---
 

@@ -6,6 +6,31 @@ The format is loosely based on Keep a Changelog, and this project follows Semant
 
 ---
 
+## [2.1.0] - 2026-08-24
+
+### Added
+
+* Added automatic LAN lobby discovery over a small, versioned UDP protocol.
+* Added nearby-room cards with host name, mode, occupancy, address and channel information.
+* Added rolling round-trip latency and packet-loss measurement for every discovered room.
+* Added Excellent, Good, Fair and Poor connection-quality ratings.
+* Added directed-broadcast discovery for physical and virtual network adapters, plus loopback discovery for local testing.
+* Added protocol, corruption, Unicode, quality-window and real UDP loopback smoke tests.
+
+### Changed
+
+* Redesigned the direct-join panel around a scrollable nearby-room browser while preserving manual address entry.
+* Clicking an available room now remembers its address and immediately starts the normal ENet join flow.
+* Discovery automatically stops when the run begins or the host disconnects.
+* Discovery replies are limited to locally attached IPv4 subnets.
+
+### Notes
+
+* Discovery uses UDP port `33770`; the actual game connection continues to use the configured game port (`33771` by default).
+* Discovery failure is non-fatal. Manual IP joining remains available.
+
+---
+
 ## [2.0.0] - 2026-08-24
 
 ### Added

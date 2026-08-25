@@ -18,6 +18,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Discovery;
 
 // ReSharper disable MemberCanBePrivate.Global
 // ReSharper disable UnusedType.Global
@@ -48,6 +49,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
                 Log.Info($"HostGame open on port:{port}");
                 if (!netErrorInfo.HasValue)
                 {
+                    LanDiscoveryHost.Instance.Start(netService, port, maxPlayers, gameMode.ToString());
                     switch (gameMode)
                     {
                         case GameMode.Standard:
@@ -110,6 +112,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
                 Log.Info($"HostGame open on port:{port}");
                 if (!netErrorInfo.HasValue)
                 {
+                    LanDiscoveryHost.Instance.Start(netService, port, maxPlayers, run.GameMode.ToString());
                     if (run.Modifiers.Count > 0)
                     {
                         if (run.DailyTime.HasValue)

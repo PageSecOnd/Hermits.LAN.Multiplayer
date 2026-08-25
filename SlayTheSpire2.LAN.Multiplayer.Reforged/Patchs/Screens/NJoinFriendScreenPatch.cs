@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Components;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Discovery;
 
 // ReSharper disable UnusedMember.Global
 // ReSharper disable UnusedType.Global
@@ -58,19 +59,29 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             };
 
             lanPanel.SetAnchorsPreset(Control.LayoutPreset.Center);
-            lanPanel.OffsetLeft = 430;
-            lanPanel.OffsetTop = -338;
-            lanPanel.OffsetRight = 810;
-            lanPanel.OffsetBottom = 338;
+            lanPanel.OffsetLeft = 410;
+            lanPanel.OffsetTop = -360;
+            lanPanel.OffsetRight = 830;
+            lanPanel.OffsetBottom = 360;
 
             var vBoxContainer = new VBoxContainer
             {
                 Alignment = BoxContainer.AlignmentMode.Center
             };
 
-            vBoxContainer.AddThemeConstantOverride("separation", 20);
+            vBoxContainer.AddThemeConstantOverride("separation", 12);
             lanPanel.AddChildSafely(vBoxContainer);
             vBoxContainer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+            vBoxContainer.OffsetLeft = 26;
+            vBoxContainer.OffsetTop = 22;
+            vBoxContainer.OffsetRight = -26;
+            vBoxContainer.OffsetBottom = -22;
+
+            var ipAddressLabel = (MegaLabel)titleLabel.Duplicate();
+            ipAddressLabel.CustomMinimumSize = new Vector2(340, 42);
+            ipAddressLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+            vBoxContainer.AddChildSafely(ipAddressLabel);
+            ipAddressLabel.SetTextAutoSize("Nearby LAN Rooms");
 
             var addressLineEdit = new AddressLineEdit
             {
@@ -79,6 +90,19 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
                 PlaceholderText = "192.168.1.100:33771",
                 SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter
             };
+
+            var nearbyLobbyPanel = NearbyLobbyPanel.Create(room =>
+            {
+                addressLineEdit.Text = $"{room.Address}:{room.GamePort}";
+                BeginJoin(__instance, addressLineEdit, room.Address, room.GamePort);
+            });
+            vBoxContainer.AddChildSafely(nearbyLobbyPanel);
+
+            vBoxContainer.AddChildSafely(new HSeparator
+            {
+                Name = "ManualJoinSeparator",
+                CustomMinimumSize = new Vector2(0, 8)
+            });
 
             vBoxContainer.AddChildSafely(addressLineEdit);
 
@@ -93,39 +117,29 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
                 if (!addressInfo.IsValid)
                     return;
 
-                var settingsService = SettingsService.Instance;
-                var settings = settingsService.SettingsModel;
-
-                if (settings.RememberJoinAddress)
-                {
-                    settings.IPAddress = addressLineEdit.Text;
-                    settingsService.WriteSettings();
-                    ModConfigBridge.SetValue(ModConfigBridge.DefaultAddressKey, addressLineEdit.Text);
-                }
-
-                ushort port = settings.HostPort;
-
-                if (addressInfo.Port.HasValue)
-                {
-                    port = addressInfo.Port.Value;
-                }
-
-                DisplayServer.WindowSetTitle("Slay The Spire 2 (Client)");
                 if (addressInfo.Address != null)
-                {
-                    TaskHelper.RunSafely(
-                        __instance.JoinGameAsync(new ENetClientConnectionInitializer(
-                            SettingsService.Instance.SettingsModel.NetId, addressInfo.Address, port)));
-                }
+                    BeginJoin(__instance, addressLineEdit, addressInfo.Address, addressInfo.Port);
             }));
 
-            var ipAddressLabel = (MegaLabel)titleLabel.Duplicate();
-            ipAddressLabel.CustomMinimumSize = new Vector2(320, 0);
-            ipAddressLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-            lanPanel.AddChildSafely(ipAddressLabel);
-            ipAddressLabel.SetTextAutoSize("Direct LAN");
-
             __instance.AddChildSafely(lanPanel);
+        }
+
+        private static void BeginJoin(NJoinFriendScreen screen, AddressLineEdit addressInput, string address,
+            ushort? explicitPort)
+        {
+            var settingsService = SettingsService.Instance;
+            var settings = settingsService.SettingsModel;
+            if (settings.RememberJoinAddress)
+            {
+                settings.IPAddress = addressInput.Text;
+                settingsService.WriteSettings();
+                ModConfigBridge.SetValue(ModConfigBridge.DefaultAddressKey, addressInput.Text);
+            }
+
+            var port = explicitPort ?? settings.HostPort;
+            DisplayServer.WindowSetTitle("Slay The Spire 2 (Client)");
+            TaskHelper.RunSafely(screen.JoinGameAsync(new ENetClientConnectionInitializer(
+                settings.NetId, address, port)));
         }
     }
 }

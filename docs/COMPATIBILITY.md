@@ -8,6 +8,8 @@ Version 2 treats the stable game API as the compile-time baseline and resolves k
 
 Lobby serialization stays vanilla. The game currently represents four lobby slots safely; raising the limit would require a protocol extension negotiated by both peers, not an unconditional serializer patch.
 
+LAN discovery is a separate, versioned UDP protocol on port `33770`. It only advertises lobby metadata and never carries game state. Unknown protocol versions and malformed datagrams must be ignored without affecting the ENet session. Latency and loss values measure the discovery round trip before joining; gameplay synchronization remains owned by the game.
+
 ## Verifying a game update
 
 1. Copy the stable and beta game reference assemblies into separate directories. Each directory must contain `sts2.dll`, `GodotSharp.dll` and `0Harmony.dll`.

@@ -7,6 +7,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Models;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Discovery;
 
 // ReSharper disable UnusedMember.Global
 // ReSharper disable UnusedType.Global
@@ -36,8 +37,11 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
             ])!;
         }
 
-        private static void Prefix(INetGameService netService)
+        private static void Prefix(INetGameService netService, MethodBase __originalMethod)
         {
+            if (__originalMethod.DeclaringType == typeof(RunLobby))
+                LanDiscoveryHost.Instance.Stop();
+
             if (netService.Platform == PlatformType.None)
             {
                 var lanPlayerNameService = LanPlayerNameService.Instance;
@@ -73,6 +77,9 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
             if (netService.Platform == PlatformType.None)
             {
+                if (disconnectSession && netService.Type == NetGameType.Host)
+                    LanDiscoveryHost.Instance.Stop();
+
                 var lanPlayerNameService = LanPlayerNameService.Instance;
 
                 if (disconnectSession)
@@ -98,6 +105,9 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
             {
                 if (____netService.Platform == PlatformType.None)
                 {
+                    if (____netService.Type == NetGameType.Host)
+                        LanDiscoveryHost.Instance.Stop();
+
                     var lanPlayerNameService = LanPlayerNameService.Instance;
 
                     lanPlayerNameService.SetDefaultPlayerNames();

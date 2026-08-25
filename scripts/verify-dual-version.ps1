@@ -36,4 +36,10 @@ foreach ($channel in @(
     }
 }
 
+$discoveryTests = Join-Path $PSScriptRoot "..\tests\DiscoverySmokeTests\DiscoverySmokeTests.csproj"
+dotnet run --project $discoveryTests --configuration Release --nologo
+if ($LASTEXITCODE -ne 0) {
+    throw "Discovery protocol smoke tests failed."
+}
+
 Write-Host "Stable and beta compatibility builds passed."
