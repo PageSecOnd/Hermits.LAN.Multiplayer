@@ -29,7 +29,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             buttonContainerNode.AddChildSafely(lanHostButton);
             buttonContainerNode.MoveChild(lanHostButton, 1);
 
-            lanHostButton.SetIconAndLocalization("HOST");
+            lanHostButton.SetLocalization("HOST");
 
             var lanHostTitle = Traverse.Create(lanHostButton).Field("_title").GetValue<MegaLabel>();
             lanHostTitle.SetTextAutoSize($"LAN {lanHostTitle.Text}");
@@ -49,7 +49,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
                     }
                     else
                     {
-                        LanHostHelper.StartHost(GameMode.Standard,
+                        LanHostHelper.StartHost(GameMode.Standard, false,
                             traverse.Field("_loadingOverlay").GetValue<Control>(), stack, settingsModel.HostPort,
                             settingsModel.HostMaxPlayers);
                     }
@@ -64,7 +64,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             buttonContainerNode.AddChildSafely(lanLoadButton);
             buttonContainerNode.MoveChild(lanLoadButton, 2);
 
-            lanLoadButton.SetIconAndLocalization("MP_LOAD");
+            lanLoadButton.SetLocalization("MP_LOAD");
 
             var lanLoadButtonTitle = Traverse.Create(lanLoadButton).Field("_title").GetValue<MegaLabel>();
             lanLoadButtonTitle.SetTextAutoSize($"LAN {lanLoadButtonTitle.Text}");
@@ -90,7 +90,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             buttonContainerNode.AddChildSafely(lanAbandonButton);
             buttonContainerNode.MoveChild(lanAbandonButton, 3);
 
-            lanAbandonButton.SetIconAndLocalization("MP_ABANDON");
+            lanAbandonButton.SetLocalization("MP_ABANDON");
 
             var lanAbandonButtonTitle = Traverse.Create(lanAbandonButton).Field("_title").GetValue<MegaLabel>();
             lanAbandonButtonTitle.SetTextAutoSize($"LAN {lanAbandonButtonTitle.Text}");

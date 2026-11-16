@@ -30,6 +30,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations
 
         private static bool _available;
         private static bool _registered;
+        private static bool _frameScheduled;
         private static int _detectionAttempts;
 
         private static Type? _apiType;
@@ -46,18 +47,20 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations
 
         private static void ScheduleNextFrame()
         {
-            if (_registered || _detectionAttempts >= MaxDetectionAttempts)
+            if (_registered || _frameScheduled || _detectionAttempts >= MaxDetectionAttempts)
                 return;
 
             if (Engine.GetMainLoop() is not SceneTree tree)
                 return;
 
-            tree.ProcessFrame -= OnNextFrame;
+            _frameScheduled = true;
             tree.ProcessFrame += OnNextFrame;
         }
 
         private static void OnNextFrame()
         {
+            _frameScheduled = false;
+
             if (Engine.GetMainLoop() is SceneTree tree)
                 tree.ProcessFrame -= OnNextFrame;
 

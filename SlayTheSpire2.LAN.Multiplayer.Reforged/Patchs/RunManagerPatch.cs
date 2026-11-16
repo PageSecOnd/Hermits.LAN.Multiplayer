@@ -2,6 +2,7 @@
 using MegaCrit.Sts2.Core.Achievements;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Daily;
+using MegaCrit.Sts2.Core.Entities.Save;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
@@ -46,7 +47,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
         }
 
         private static bool Prefix(RunManager __instance, bool isVictory, ref bool ____runHistoryWasUploaded,
-            ref SerializableRun __result)
+            ref PostRunProgressUpdateResult __result)
         {
             if (__instance.NetService.Platform == PlatformType.None)
             {
@@ -77,7 +78,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
                 if (____runHistoryWasUploaded)
                 {
-                    __result = serializableRun;
+                    __result = PostRunProgressUpdateResult.Unsuccessful(serializableRun);
                     return false;
                 }
 
@@ -91,11 +92,12 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
                     }
                 }
 
+                PostRunProgressUpdateResult? updateResult = null;
                 if (__instance.ShouldSave)
                 {
                     using (SaveManager.Instance.BeginSaveBatch())
                     {
-                        SaveManager.Instance.UpdateProgressWithRunData(serializableRun, isVictory);
+                        updateResult = SaveManager.Instance.UpdateProgressWithRunData(serializableRun, isVictory);
                         foreach (var discoveredEpoch in me2.DiscoveredEpochs)
                         {
                             if (!me.DiscoveredEpochs.Contains(discoveredEpoch))
@@ -152,7 +154,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
                     }
                 }
 
-                __result = serializableRun;
+                __result = updateResult ?? PostRunProgressUpdateResult.Unsuccessful(serializableRun);
 
                 return false;
             }

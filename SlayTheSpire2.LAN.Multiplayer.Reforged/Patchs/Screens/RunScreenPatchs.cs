@@ -2,9 +2,11 @@
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
+using MegaCrit.Sts2.Core.Nodes.Screens.Blitz;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.DailyRun;
+using MegaCrit.Sts2.Core.Nodes.Screens.Dread;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Platform;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Components;
@@ -25,6 +27,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             yield return typeof(NCharacterSelectScreen).GetMethod("_Ready", flags)!;
             yield return typeof(NDailyRunScreen).GetMethod("_Ready", flags)!;
             yield return typeof(NCustomRunScreen).GetMethod("_Ready", flags)!;
+            yield return typeof(NBlitzScreen).GetMethod("_Ready", flags)!;
+            yield return typeof(NDreadScreen).GetMethod("_Ready", flags)!;
         }
 
         private static void Prefix(NSubmenu __instance)
@@ -46,6 +50,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             yield return typeof(NCharacterSelectScreen).GetMethod("InitializeMultiplayerAsHost", flags)!;
             yield return typeof(NDailyRunScreen).GetMethod("InitializeMultiplayerAsHost", flags)!;
             yield return typeof(NCustomRunScreen).GetMethod("InitializeMultiplayerAsHost", flags)!;
+            yield return typeof(NBlitzScreen).GetMethod("InitializeMultiplayerAsHost", flags)!;
+            yield return typeof(NDreadScreen).GetMethod("InitializeMultiplayerAsHost", flags)!;
         }
 
         private static void Prefix(NSubmenu __instance, INetGameService gameService)
@@ -64,6 +70,12 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
                         break;
                     case NCustomRunScreen customRunScreen:
                         runScreenService.CustomRunScreen = customRunScreen;
+                        break;
+                    case NBlitzScreen blitzScreen:
+                        runScreenService.BlitzScreen = blitzScreen;
+                        break;
+                    case NDreadScreen dreadScreen:
+                        runScreenService.DreadScreen = dreadScreen;
                         break;
                 }
             }
@@ -96,6 +108,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             yield return typeof(NCharacterSelectScreen).GetMethod("InitializeMultiplayerAsClient", flags)!;
             yield return typeof(NDailyRunScreen).GetMethod("InitializeMultiplayerAsClient", flags)!;
             yield return typeof(NCustomRunScreen).GetMethod("InitializeMultiplayerAsClient", flags)!;
+            yield return typeof(NBlitzScreen).GetMethod("InitializeMultiplayerAsClient", flags)!;
+            yield return typeof(NDreadScreen).GetMethod("InitializeMultiplayerAsClient", flags)!;
         }
 
         private static void Prefix(NSubmenu __instance, INetGameService gameService)
@@ -114,6 +128,12 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
                         break;
                     case NCustomRunScreen customRunScreen:
                         runScreenService.CustomRunScreen = customRunScreen;
+                        break;
+                    case NBlitzScreen blitzScreen:
+                        runScreenService.BlitzScreen = blitzScreen;
+                        break;
+                    case NDreadScreen dreadScreen:
+                        runScreenService.DreadScreen = dreadScreen;
                         break;
                 }
             }
@@ -138,6 +158,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             yield return typeof(NCharacterSelectScreen).GetMethod("InitializeSingleplayer", flags)!;
             yield return typeof(NDailyRunScreen).GetMethod("InitializeSingleplayer", flags)!;
             yield return typeof(NCustomRunScreen).GetMethod("InitializeSingleplayer", flags)!;
+            yield return typeof(NBlitzScreen).GetMethod("InitializeSingleplayer", flags)!;
+            yield return typeof(NDreadScreen).GetMethod("InitializeSingleplayer", flags)!;
         }
 
         private static void Postfix(NSubmenu __instance)

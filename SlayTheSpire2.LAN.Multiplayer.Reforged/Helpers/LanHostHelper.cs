@@ -9,9 +9,11 @@ using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Multiplayer;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
+using MegaCrit.Sts2.Core.Nodes.Screens.Blitz;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.DailyRun;
+using MegaCrit.Sts2.Core.Nodes.Screens.Dread;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Platform;
 using MegaCrit.Sts2.Core.Runs;
@@ -37,8 +39,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
                     BindingFlags.Instance | BindingFlags.NonPublic)!);
         }
 
-        public static void StartHost(GameMode gameMode, Control loadingOverlay, NSubmenuStack stack, ushort port,
-            int maxPlayers)
+        public static void StartHost(GameMode gameMode, bool isCustom, Control loadingOverlay, NSubmenuStack stack,
+            ushort port, int maxPlayers)
         {
             loadingOverlay.Visible = true;
             try
@@ -50,7 +52,13 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
                 if (!netErrorInfo.HasValue)
                 {
                     LanDiscoveryHost.Instance.Start(netService, port, maxPlayers, gameMode.ToString());
-                    switch (gameMode)
+                    if (isCustom)
+                    {
+                        var customRunScreen = stack.GetSubmenuType<NCustomRunScreen>();
+                        customRunScreen.InitializeMultiplayerAsHost(netService, maxPlayers);
+                        stack.Push(customRunScreen);
+                    }
+                    else switch (gameMode)
                     {
                         case GameMode.Standard:
                         {
@@ -64,6 +72,20 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
                             var submenuType2 = stack.GetSubmenuType<NDailyRunScreen>();
                             submenuType2.InitializeMultiplayerAsHost(netService);
                             stack.Push(submenuType2);
+                            break;
+                        }
+                        case GameMode.Blitz:
+                        {
+                            var blitzScreen = stack.GetSubmenuType<NBlitzScreen>();
+                            blitzScreen.InitializeMultiplayerAsHost(netService, maxPlayers);
+                            stack.Push(blitzScreen);
+                            break;
+                        }
+                        case GameMode.Dread:
+                        {
+                            var dreadScreen = stack.GetSubmenuType<NDreadScreen>();
+                            dreadScreen.InitializeMultiplayerAsHost(netService, maxPlayers);
+                            stack.Push(dreadScreen);
                             break;
                         }
                         default:

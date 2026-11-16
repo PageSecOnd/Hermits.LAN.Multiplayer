@@ -108,6 +108,16 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
                 UpdateNameplateLabel(runScreenService.CustomRunScreen);
             }
 
+            if (runScreenService.BlitzScreen != null)
+            {
+                UpdateNameplateLabel(runScreenService.BlitzScreen);
+            }
+
+            if (runScreenService.DreadScreen != null)
+            {
+                UpdateNameplateLabel(runScreenService.DreadScreen);
+            }
+
             if (runScreenService.MultiplayerLoadGameScreen != null)
             {
                 UpdateNameplateLabel(runScreenService.MultiplayerLoadGameScreen);

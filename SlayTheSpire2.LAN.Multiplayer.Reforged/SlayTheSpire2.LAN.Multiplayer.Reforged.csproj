@@ -29,6 +29,11 @@
     <Private>false</Private>
   </Reference>
 
+  <Reference Include="Steamworks.NET">
+    <HintPath>$(Sts2Dir)\Steamworks.NET.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+
   <Reference Include="sts2">
     <HintPath>$(Sts2Dir)\sts2.dll</HintPath>
     <Private>false</Private>

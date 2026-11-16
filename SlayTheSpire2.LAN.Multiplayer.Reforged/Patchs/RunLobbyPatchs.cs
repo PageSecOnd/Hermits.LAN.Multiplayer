@@ -19,9 +19,18 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
     {
         private static IEnumerable<MethodBase> TargetMethods()
         {
-            yield return typeof(StartRunLobby).GetConstructor([
-                typeof(GameMode), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)
-            ])!;
+            var startRunLobbyConstructor = typeof(StartRunLobby).GetConstructors().SingleOrDefault(constructor =>
+            {
+                var parameters = constructor.GetParameters();
+                return parameters.Length is 4 or 5 &&
+                       parameters[0].ParameterType == typeof(GameMode) &&
+                       parameters[^1].ParameterType == typeof(int) &&
+                       parameters.Any(p => p.ParameterType == typeof(INetGameService)) &&
+                       parameters.Any(p => p.ParameterType == typeof(IStartRunLobbyListener)) &&
+                       parameters.All(p => p.ParameterType.Name != "TimeServerResult");
+            });
+            if (startRunLobbyConstructor != null)
+                yield return startRunLobbyConstructor;
             var runLobbyConstructor = typeof(RunLobby).GetConstructors().SingleOrDefault(constructor =>
             {
                 var parameters = constructor.GetParameters();

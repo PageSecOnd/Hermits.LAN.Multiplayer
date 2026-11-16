@@ -4,9 +4,11 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
+using MegaCrit.Sts2.Core.Nodes.Screens.Blitz;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.DailyRun;
+using MegaCrit.Sts2.Core.Nodes.Screens.Dread;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Compatibility;
 
 namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
@@ -22,6 +24,10 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
         public NDailyRunScreen? DailyRunScreen;
 
         public NCustomRunScreen? CustomRunScreen;
+
+        public NBlitzScreen? BlitzScreen;
+
+        public NDreadScreen? DreadScreen;
 
         public NMultiplayerLoadGameScreen? MultiplayerLoadGameScreen;
 
