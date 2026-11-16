@@ -20,7 +20,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
         private static IEnumerable<MethodBase> TargetMethods()
         {
             yield return typeof(StartRunLobby).GetConstructor([
-                typeof(GameMode), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)
+                typeof(GameMode), typeof(bool), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)
             ])!;
             yield return typeof(RunLobby).GetConstructor([
                 typeof(GameMode), typeof(INetGameService), typeof(IRunLobbyListener), typeof(IPlayerCollection),

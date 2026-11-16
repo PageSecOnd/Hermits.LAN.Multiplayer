@@ -3,7 +3,9 @@ using MegaCrit.Sts2.Core.Achievements;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Daily;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Entities.Save;
 using MegaCrit.Sts2.Core.Helpers;
+using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
 using MegaCrit.Sts2.Core.Platform;
@@ -46,10 +48,18 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
         }
 
         private static bool Prefix(RunManager __instance, bool isVictory, ref bool ____runHistoryWasUploaded,
-            ref SerializableRun __result)
+            ref PostRunProgressUpdateResult __result)
         {
             if (__instance.NetService.Platform == PlatformType.None)
             {
+                if (__instance.HasRunEnded)
+                {
+                    Log.Error("OnEnded called twice! This should not occur. Ignoring second end.");
+                    __result = default;
+                    return false;
+                }
+
+                Traverse.Create(__instance).Property(nameof(RunManager.HasRunEnded)).SetValue(true);
                 UpdatePlayerStatsInMapPointHistory(__instance);
                 var state = Traverse.Create(__instance).Property("State").GetValue<RunState?>();
                 if (state == null)
@@ -65,7 +75,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
                 if (state is { CurrentRoom: CombatRoom combatRoom, CurrentMapPointHistoryEntry: not null })
                 {
-                    state.CurrentMapPointHistoryEntry.Rooms.Last().TurnsTaken = combatRoom.CombatState.RoundNumber;
+                    state.CurrentMapPointHistoryEntry.Rooms.Last().TurnsTaken =
+                        me.PlayerCombatState?.TurnNumber ?? combatRoom.CombatState.RoundNumber;
                 }
 
                 var serializableRun = __instance.ToSave(null);
@@ -77,7 +88,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
 
                 if (____runHistoryWasUploaded)
                 {
-                    __result = serializableRun;
+                    __result = PostRunProgressUpdateResult.Unsuccessful(serializableRun);
                     return false;
                 }
 
@@ -91,11 +102,13 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
                     }
                 }
 
+                PostRunProgressUpdateResult? postRunProgressUpdateResult = null;
                 if (__instance.ShouldSave)
                 {
                     using (SaveManager.Instance.BeginSaveBatch())
                     {
-                        SaveManager.Instance.UpdateProgressWithRunData(serializableRun, isVictory);
+                        postRunProgressUpdateResult =
+                            SaveManager.Instance.UpdateProgressWithRunData(serializableRun, isVictory);
                         foreach (var discoveredEpoch in me2.DiscoveredEpochs)
                         {
                             if (!me.DiscoveredEpochs.Contains(discoveredEpoch))
@@ -141,18 +154,19 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
                     var type = __instance.NetService.Type;
                     if ((uint)(type - 1) <= 1u)
                     {
-                        var score2 = ScoreUtility.CalculateScore(serializableRun, isVictory);
+                        var score2 = ScoreUtility.CalculateDailyScore(serializableRun, me.NetId, isVictory);
                         TaskHelper.RunSafely(DailyRunUtility.UploadScore(__instance.DailyTime.Value, score2,
                             serializableRun.Players));
                     }
                     else if (__instance.NetService.Type == NetGameType.Client)
                     {
-                        TaskHelper.RunSafely(DailyRunUtility.UploadScore(__instance.DailyTime.Value, -99999,
+                        TaskHelper.RunSafely(DailyRunUtility.UploadScore(__instance.DailyTime.Value, -999999999,
                             serializableRun.Players));
                     }
                 }
 
-                __result = serializableRun;
+                __result = postRunProgressUpdateResult ??
+                    PostRunProgressUpdateResult.Unsuccessful(serializableRun);
 
                 return false;
             }

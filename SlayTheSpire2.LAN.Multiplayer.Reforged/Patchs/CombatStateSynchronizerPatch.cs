@@ -122,6 +122,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
             traverse.Field("_rngSet").SetValue(null);
             traverse.Field("_sharedRelicGrabBag").SetValue(null);
             traverse.Field("_syncCompletionSource").SetValue(null);
+            traverse.Field("_hasSentRngSet").SetValue(false);
         }
     }
 }

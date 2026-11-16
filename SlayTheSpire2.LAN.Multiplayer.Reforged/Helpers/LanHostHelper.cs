@@ -9,9 +9,11 @@ using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Multiplayer;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
+using MegaCrit.Sts2.Core.Nodes.Screens.Blitz;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.DailyRun;
+using MegaCrit.Sts2.Core.Nodes.Screens.Dread;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Platform;
 using MegaCrit.Sts2.Core.Runs;
@@ -36,38 +38,57 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
         }
 
         public static void StartHost(GameMode gameMode, Control loadingOverlay, NSubmenuStack stack, ushort port,
-            int maxPlayers)
+            int maxPlayers, bool isCustom = false)
         {
             loadingOverlay.Visible = true;
             try
             {
-                var netService = new NetHostGameService();
+                var netService = new NetHostGameService(PeerVersionInfo.LocalDefault());
                 var netErrorInfo = netService.StartENetHost(port, maxPlayers + 1);
                 Log.Info($"HostGame open on port:{port}");
                 if (!netErrorInfo.HasValue)
                 {
-                    switch (gameMode)
+                    if (isCustom)
                     {
-                        case GameMode.Standard:
+                        var submenuType = stack.GetSubmenuType<NCustomRunScreen>();
+                        submenuType.InitializeMultiplayerAsHost(netService, maxPlayers);
+                        stack.Push(submenuType);
+                    }
+                    else
+                    {
+                        switch (gameMode)
                         {
-                            var submenuType3 = stack.GetSubmenuType<NCharacterSelectScreen>();
-                            submenuType3.InitializeMultiplayerAsHost(netService, maxPlayers);
-                            stack.Push(submenuType3);
-                            break;
-                        }
-                        case GameMode.Daily:
-                        {
-                            var submenuType2 = stack.GetSubmenuType<NDailyRunScreen>();
-                            submenuType2.InitializeMultiplayerAsHost(netService);
-                            stack.Push(submenuType2);
-                            break;
-                        }
-                        default:
-                        {
-                            var submenuType = stack.GetSubmenuType<NCustomRunScreen>();
-                            submenuType.InitializeMultiplayerAsHost(netService, maxPlayers);
-                            stack.Push(submenuType);
-                            break;
+                            case GameMode.Standard:
+                            {
+                                var submenuType3 = stack.GetSubmenuType<NCharacterSelectScreen>();
+                                submenuType3.InitializeMultiplayerAsHost(netService, maxPlayers);
+                                stack.Push(submenuType3);
+                                break;
+                            }
+                            case GameMode.Daily:
+                            {
+                                var submenuType2 = stack.GetSubmenuType<NDailyRunScreen>();
+                                submenuType2.InitializeMultiplayerAsHost(netService);
+                                stack.Push(submenuType2);
+                                break;
+                            }
+                            case GameMode.Dread:
+                            {
+                                var submenuType4 = stack.GetSubmenuType<NDreadScreen>();
+                                submenuType4.InitializeMultiplayerAsHost(netService, maxPlayers);
+                                stack.Push(submenuType4);
+                                break;
+                            }
+                            case GameMode.Blitz:
+                            {
+                                var submenuType5 = stack.GetSubmenuType<NBlitzScreen>();
+                                submenuType5.InitializeMultiplayerAsHost(netService, maxPlayers);
+                                stack.Push(submenuType5);
+                                break;
+                            }
+                            default:
+                                throw new ArgumentOutOfRangeException(nameof(gameMode), gameMode,
+                                    "Unsupported LAN game mode.");
                         }
                     }
                 }
@@ -102,25 +123,22 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers
             loadingOverlay.Visible = true;
             try
             {
-                var netService = new NetHostGameService();
+                var netService = new NetHostGameService(PeerVersionInfo.LocalDefault());
                 var netErrorInfo = netService.StartENetHost(port, maxPlayers + 1);
                 Log.Info($"HostGame open on port:{port}");
                 if (!netErrorInfo.HasValue)
                 {
-                    if (run.Modifiers.Count > 0)
+                    if (run.GameMode == GameMode.Daily)
                     {
-                        if (run.DailyTime.HasValue)
-                        {
-                            var submenuType = stack.GetSubmenuType<NDailyRunLoadScreen>();
-                            submenuType.InitializeAsHost(netService, run);
-                            stack.Push(submenuType);
-                        }
-                        else
-                        {
-                            var submenuType2 = stack.GetSubmenuType<NCustomRunLoadScreen>();
-                            submenuType2.InitializeAsHost(netService, run);
-                            stack.Push(submenuType2);
-                        }
+                        var submenuType = stack.GetSubmenuType<NDailyRunLoadScreen>();
+                        submenuType.InitializeAsHost(netService, run);
+                        stack.Push(submenuType);
+                    }
+                    else if (run.IsCustomGame)
+                    {
+                        var submenuType2 = stack.GetSubmenuType<NCustomRunLoadScreen>();
+                        submenuType2.InitializeAsHost(netService, run);
+                        stack.Push(submenuType2);
                     }
                     else
                     {

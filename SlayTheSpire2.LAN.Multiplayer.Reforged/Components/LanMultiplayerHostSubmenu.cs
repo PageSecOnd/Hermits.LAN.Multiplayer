@@ -29,9 +29,18 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
 
             lanMultiplayerHostSubmenu.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 
+            // Keep the scene's unique-name lookups valid after moving its nodes.
+            var ownedNodes = multiplayerHostSubmenu.FindChildren("*", "", true, false)
+                .Where(node => node.Owner == multiplayerHostSubmenu).ToArray();
+
             foreach (var child in multiplayerHostSubmenu.GetChildren())
             {
                 child.Reparent(lanMultiplayerHostSubmenu, false);
+            }
+
+            foreach (var node in ownedNodes)
+            {
+                node.Owner = lanMultiplayerHostSubmenu;
             }
 
             multiplayerHostSubmenu.QueueFreeSafely();
@@ -43,52 +52,78 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
         {
             ConnectSignals();
 
-            var loadingOverlay = GetNode<Control>("LoadingOverlay");
+            var loadingOverlay = GetNode<Control>("%LoadingOverlay");
             Traverse.Create(this).Field("_loadingOverlay").SetValue(loadingOverlay);
             _loadingOverlay = loadingOverlay;
 
-            var standardButton = GetNode<NSubmenuButton>("StandardButton");
+            var standardButton = GetNode<NSubmenuButton>("%StandardButton");
             Traverse.Create(this).Field("_standardButton").SetValue(standardButton);
 
             standardButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(OnStandardPressed));
-            standardButton.SetIconAndLocalization("STANDARD_MP");
+            standardButton.SetLocalization("STANDARD_MP");
+            standardButton.SetIcon("standard");
 
-            var dailyButton = GetNode<NSubmenuButton>("DailyButton");
+            var dailyButton = GetNode<NSubmenuButton>("%DailyButton");
             Traverse.Create(this).Field("_dailyButton").SetValue(dailyButton);
 
             dailyButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(OnDailyPressed));
-            dailyButton.SetIconAndLocalization("DAILY_MP");
+            dailyButton.SetLocalization("DAILY_MP");
+            dailyButton.SetIcon("daily");
 
-            var customButton = GetNode<NSubmenuButton>("CustomRunButton");
+            var customButton = GetNode<NSubmenuButton>("%CustomRunButton");
             Traverse.Create(this).Field("_customButton").SetValue(customButton);
 
             customButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(OnCustomPressed));
-            customButton.SetIconAndLocalization("CUSTOM_MP");
+            customButton.SetLocalization("CUSTOM_MP");
+            customButton.SetIcon("custom");
+
+            var blitzButton = GetNode<NSubmenuButton>("%BlitzButton");
+            Traverse.Create(this).Field("_blitzButton").SetValue(blitzButton);
+            blitzButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(OnBlitzPressed));
+            blitzButton.SetLocalization("BLITZ_MP");
+            blitzButton.SetIcon("blitz");
+
+            var dreadButton = GetNode<NSubmenuButton>("%DreadButton");
+            Traverse.Create(this).Field("_dreadButton").SetValue(dreadButton);
+            dreadButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(OnDreadPressed));
+            dreadButton.SetLocalization("DREAD_MP");
+            dreadButton.SetIcon("dread");
+
         }
 
         private void OnStandardPressed(NButton _)
         {
-            StartHost(GameMode.Standard);
+            StartLanHost(GameMode.Standard);
         }
 
         private void OnDailyPressed(NButton _)
         {
-            StartHost(GameMode.Daily);
+            StartLanHost(GameMode.Daily);
+        }
+
+        private void OnBlitzPressed(NButton _)
+        {
+            StartLanHost(GameMode.Blitz);
+        }
+
+        private void OnDreadPressed(NButton _)
+        {
+            StartLanHost(GameMode.Dread);
         }
 
         private void OnCustomPressed(NButton _)
         {
-            StartHost(GameMode.Custom);
+            StartLanHost(GameMode.Standard, isCustom: true);
         }
 
-        private new void StartHost(GameMode gameMode)
+        private void StartLanHost(GameMode gameMode, bool isCustom = false)
         {
             if (_loadingOverlay != null)
             {
                 var settingsModel = SettingsService.Instance.SettingsModel;
 
                 LanHostHelper.StartHost(gameMode, _loadingOverlay, _stack, settingsModel.HostPort,
-                    settingsModel.HostMaxPlayers);
+                    settingsModel.HostMaxPlayers, isCustom);
             }
         }
     }
