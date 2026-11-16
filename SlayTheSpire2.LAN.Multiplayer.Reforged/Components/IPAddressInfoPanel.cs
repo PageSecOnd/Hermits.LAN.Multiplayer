@@ -1,6 +1,7 @@
-﻿using System.Net.NetworkInformation;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Godot;
+using MegaCrit.Sts2.Core.ControllerInput;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
@@ -230,9 +231,14 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
             NInputManager.Instance?.Connect(NInputManager.SignalName.InputRebound, Callable.From(UpdateController));
         }
 
+        private static bool IsUsingController()
+        {
+            return NControllerManager.Instance?.InputType == InputType.Controller;
+        }
+
         private void UpdateController()
         {
-            if (NControllerManager.Instance?.IsUsingController ?? false)
+            if (IsUsingController())
             {
                 ShowBox();
             }
@@ -370,7 +376,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
 
         private void OnMouseEntered()
         {
-            if (NControllerManager.Instance?.IsUsingController ?? false)
+            if (IsUsingController())
                 return;
 
             ShowBox();
@@ -378,7 +384,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Components
 
         private void OnMouseExited()
         {
-            if (NControllerManager.Instance?.IsUsingController ?? false)
+            if (IsUsingController())
                 return;
 
             HideBox();

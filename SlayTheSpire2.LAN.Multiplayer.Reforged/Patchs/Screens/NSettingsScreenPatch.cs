@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Components;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
 
@@ -79,16 +80,17 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
             var hostMaxPlayersInput = new SpinBox
             {
                 Name = "HostMaxPlayersInput", CustomMinimumSize = new Vector2(324, 64),
-                SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd, Step = 1, MinValue = 2,
+                SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd, Step = 1,
+                MinValue = LanProtocolPolicy.MinPlayers, MaxValue = LanProtocolPolicy.MaxPlayers
             };
 
             hostMaxPlayersInput.GetLineEdit().Alignment = HorizontalAlignment.Center;
             hostMaxPlayers.AddChildSafely(hostMaxPlayersInput);
 
-            hostMaxPlayersInput.Value = SettingsService.Instance.SettingsModel.HostMaxPlayers;
+            hostMaxPlayersInput.Value = LanProtocolPolicy.ClampPlayerCount(SettingsService.Instance.SettingsModel.HostMaxPlayers);
             hostMaxPlayersInput.ValueChanged += value =>
             {
-                SettingsService.Instance.SettingsModel.HostMaxPlayers = (int)value;
+                SettingsService.Instance.SettingsModel.HostMaxPlayers = LanProtocolPolicy.ClampPlayerCount((int)value);
                 SettingsService.Instance.WriteSettings();
             };
 
@@ -206,5 +208,4 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs.Screens
         }
     }
 }
-
 

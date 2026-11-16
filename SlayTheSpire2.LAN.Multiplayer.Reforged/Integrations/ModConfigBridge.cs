@@ -3,6 +3,7 @@ using System.Net;
 using System.Reflection;
 using Godot;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Components;
+using SlayTheSpire2.LAN.Multiplayer.Reforged.Helpers;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Models;
 using SlayTheSpire2.LAN.Multiplayer.Reforged.Services;
 
@@ -51,14 +52,19 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations
             if (Engine.GetMainLoop() is not SceneTree tree)
                 return;
 
-            tree.ProcessFrame -= OnNextFrame;
-            tree.ProcessFrame += OnNextFrame;
+            var callback = Callable.From(OnNextFrame);
+            if (!tree.IsConnected(SceneTree.SignalName.ProcessFrame, callback))
+                tree.Connect(SceneTree.SignalName.ProcessFrame, callback);
         }
 
         private static void OnNextFrame()
         {
             if (Engine.GetMainLoop() is SceneTree tree)
-                tree.ProcessFrame -= OnNextFrame;
+            {
+                var callback = Callable.From(OnNextFrame);
+                if (tree.IsConnected(SceneTree.SignalName.ProcessFrame, callback))
+                    tree.Disconnect(SceneTree.SignalName.ProcessFrame, callback);
+            }
 
             if (_registered)
                 return;
@@ -175,9 +181,9 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations
                 Set(config, "Label", "Maximum players");
                 Set(config, "Labels", L("Maximum players", "最大玩家数"));
                 Set(config, "Type", EnumValue("Slider"));
-                Set(config, "DefaultValue", (object)(float)Math.Clamp(settings.HostMaxPlayers, 2, 16));
-                Set(config, "Min", 2f);
-                Set(config, "Max", 16f);
+                Set(config, "DefaultValue", (object)(float)LanProtocolPolicy.ClampPlayerCount(settings.HostMaxPlayers));
+                Set(config, "Min", (float)LanProtocolPolicy.MinPlayers);
+                Set(config, "Max", (float)LanProtocolPolicy.MaxPlayers);
                 Set(config, "Step", 1f);
                 Set(config, "Format", "F0");
                 Set(config, "Description", "Maximum number of players in a hosted LAN lobby.");
@@ -298,9 +304,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations
             if (TryParsePort(portText, out var port))
                 settings.HostPort = port;
 
-            settings.HostMaxPlayers = Math.Clamp(
-                (int)MathF.Round(GetValue(HostMaxPlayersKey, (float)settings.HostMaxPlayers)),
-                2, 16);
+            settings.HostMaxPlayers = LanProtocolPolicy.ClampPlayerCount(
+                (int)MathF.Round(GetValue(HostMaxPlayersKey, (float)settings.HostMaxPlayers)));
 
             settings.ConnectTimeoutSeconds = Math.Clamp(
                 (int)MathF.Round(GetValue(ConnectTimeoutKey, (float)settings.ConnectTimeoutSeconds)),
@@ -378,9 +383,8 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Integrations
 
         private static void OnHostMaxPlayersChanged(object value)
         {
-            var maxPlayers = Math.Clamp(
-                (int)MathF.Round(Convert.ToSingle(value, CultureInfo.InvariantCulture)),
-                2, 16);
+            var maxPlayers = LanProtocolPolicy.ClampPlayerCount(
+                (int)MathF.Round(Convert.ToSingle(value, CultureInfo.InvariantCulture)));
 
             var service = SettingsService.Instance;
             service.SettingsModel.HostMaxPlayers = maxPlayers;

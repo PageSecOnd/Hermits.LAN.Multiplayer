@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Multiplayer;
@@ -79,7 +79,7 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Services
             NetService?.SendMessage(new LanPlayerNameResponseMessage { playerNames = PlayerNames });
         }
 
-        public async Task AttemptPlayerName(NetClientGameService gameService)
+        public async Task AttemptPlayerName(INetClientGameService gameService)
         {
             LanPlayerNameCompletion = new TaskCompletionSource<LanPlayerNameResponseMessage>();
             var message = new LanPlayerNameRequestMessage

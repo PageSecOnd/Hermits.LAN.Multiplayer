@@ -1,5 +1,6 @@
-﻿using System.Reflection;
+using System.Reflection;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
 using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Platform;
@@ -19,11 +20,11 @@ namespace SlayTheSpire2.LAN.Multiplayer.Reforged.Patchs
         private static IEnumerable<MethodBase> TargetMethods()
         {
             yield return typeof(StartRunLobby).GetConstructor([
-                typeof(GameMode), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)
+                typeof(GameMode), typeof(bool), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)
             ])!;
             yield return typeof(RunLobby).GetConstructor([
                 typeof(GameMode), typeof(INetGameService), typeof(IRunLobbyListener), typeof(IPlayerCollection),
-                typeof(IEnumerable<ulong>)
+                typeof(IEnumerable<RunLobbyPlayer>)
             ])!;
             yield return typeof(LoadRunLobby).GetConstructor([
                 typeof(INetGameService), typeof(ILoadRunLobbyListener), typeof(SerializableRun)
